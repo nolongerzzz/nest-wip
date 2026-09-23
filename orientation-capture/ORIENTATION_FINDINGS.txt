@@ -1,0 +1,221 @@
+ORIENTATION CAPTURE - nest-wip - findings
+==========================================
+
+SESSION INFO
+------------
+Target: nest-wip app, commit e32a04c (HEAD of origin/main at capture time -
+this is the exact commit GitHub Pages deploys from on every push to main, per
+.github/workflows/pages.yml, so it should match https://nolongerzzz.github.io/nest-wip/
+byte for byte).
+
+Environment note: this sandbox's outbound network policy denies
+nolongerzzz.github.io AND cdn.jsdelivr.net (the CDN index.html loads
+three.js/OrbitControls/STLLoader from), so the capture ran against a locally
+served copy of this exact checkout (http-server on 127.0.0.1:8099) with the
+three CDN script requests intercepted and fulfilled from the identical
+three@0.147.0 files (fetched via the allowed npm registry). index.html itself
+was not modified. This is noted because it means the capture is a faithful
+stand-in for "live" but was not literally driven against the deployed URL.
+
+Driver: Playwright (Chromium), scripted click-throughs, not manual - but the
+click sequence matches the mission's WORKFLOW steps exactly (Import -> From
+Library -> tape_on-edge-single.stl -> select -> Mirror x2 -> Hollow ->
+Hollow again).
+
+SEQUENCE AND EXACT STATUS TEXT
+-------------------------------
+1. LOAD: window.state.scene present after page load. No status line yet.
+
+2. START LISTENER: clicked #btn-watch. NSOWatch.isOn() -> true immediately.
+   First listener event:
+     "watch on - watch1 - error/status log and state-consistency checks are live"
+
+3. IMPORT (Import -> From Library -> tape_on-edge-single.stl):
+     "Loading tape_on-edge-single.stl..."
+     "Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize"
+     "Library placed stacked"                                    <- tagged REFUSAL (see below)
+   Piece did NOT auto-select after import (getActiveModel() was null); had to
+   call selectPlaced(0) explicitly to get a selection, same as clicking the
+   piece would have done.
+
+   SEPARATE, NOT IN THE LISTENER LOG AT ALL: the Plate panel showed a
+   persistent build-volume warning the whole session:
+     "tape_on-edge-single: TOO BIG for Bambu A1 Mini - X 185 mm is 5 mm over the 180 mm limit"
+   This comes from #build-volume-warning, rendered directly by app-fit.js's
+   render() (textContent set straight on the element), never through
+   setStatus, console.error/warn, or any DOM API NSOWatch hooks. It was
+   visible on screen for the entire session and the listener never mentions
+   it once. See FINDING 1 below.
+
+4. WORKFLOW A - MIRROR (two clicks, per the UI's own design: first click
+   resolves axis/plane into the input box, second click executes):
+     Click 1: "Mirror: this piece runs along X. Plane 0 is the midpoint (no clean band). Press Mirror to reflect across it, or type another plane."
+     Click 2: "Mirror done - X across 0 (given plane), cross-section unchanged (0 drifted coordinates), round-trip exact"
+   Result: SUCCEEDED.
+
+5. WORKFLOW B - HOLLOW (default settings, one click):
+     "Hollowed to a 2 mm wall - 13012 cavity triangle(s) at a 1.302 mm pitch, 16260.867 mm³ of interior removed, wall measured 1.892 mm against a 0.42 mm floor (pitch capped by the grid limit)"
+   Result: SUCCEEDED.
+
+6. WORKFLOW C - DELIBERATE FAILURE (ran Hollow a second time on the now-
+   hollow piece - the UI has no "join piece to itself" affordance, Join needs
+   two distinct placed pieces, so a second Hollow was the natural way to
+   force a refusal):
+     "Hollow refused - a 2 mm wall leaves no cavity anywhere in this piece - every point inside it is within 2 mm of the surface. Hollow thinner, or leave it solid."
+   Result: REFUSED, cleanly, with the exact gate named (wall thickness vs.
+   remaining material - the 2 mm wall from the first pass consumed the whole
+   piece).
+
+7. EXPORT: pulled NSOWatch.events()/.summary()/.open()/.report() directly
+   from the page (equivalent to clicking Save - same underlying data) and
+   wrote it to listener_orientation_output.json. NSOWatch.open() returned []
+   - zero phantom/state-consistency mismatches were found across the whole
+   session (0 phantom, 0 error, shown in the Watch panel UI too).
+
+SUCCESS / FAILURE SUMMARY
+--------------------------
+- Listener start:        succeeded, confirmed via NSOWatch.isOn()
+- Import:                succeeded (piece loaded and placed), but with a
+                          flagged-bad "stacked" fallback (see FINDING 2) and
+                          a silent oversize-for-printer warning (FINDING 1)
+- Mirror:                succeeded
+- Hollow (1st pass):     succeeded
+- Hollow (2nd pass):     refused, as intended for workflow C
+- Listener export:       succeeded, 8 events captured, 0 open phantoms
+
+FINDINGS
+========
+
+FINDING 1 - Build-volume / printer-fit warning is completely invisible to
+the listener.
+  The "TOO BIG for Bambu A1 Mini" banner is real, persistent, and arguably
+  the single most actionable message on screen during this whole session
+  (the piece cannot be printed on the selected machine as placed) - and it
+  never appears in listener_orientation_output.json. app-fit.js's render()
+  writes straight to #build-volume-warning.textContent, bypassing setStatus,
+  console.*, fetch/XHR - every hook NSOWatch installs. For a Build vs.
+  Hypothesis comparison, this is a real gap: the listener's picture of "what
+  the app told the user" is incomplete without it. A minimal fix would be to
+  route NSO_fitWarningText()'s output through setStatus() (or a comparable
+  logging call) whenever it changes, in addition to the direct DOM write.
+
+FINDING 2 - The HUD string (#adjust-status) is excluded by design, and that
+matters more with a piece selected.
+  docs/WATCH.md says this explicitly: "Neither is the HUD (#adjust-status);
+  Grok owns that string." In the final screenshot, the HUD shows live,
+  useful text ("Selected #1 - drag to move, right-click to delete", then the
+  Hollow refusal echoed in red) that duplicates part of the status line but
+  is otherwise a second, un-logged channel. Not a bug, since the doc names
+  it as a deliberate exclusion, but worth flagging as a documented listener
+  blind spot if anyone assumes NSOWatch's export is "everything the user
+  saw."
+
+FINDING 3 - "Library placed stacked" is tagged as a refusal, and that
+tagging is correct but easy to misread.
+  NSOWatch classifies a status line as "refusal" two ways: (a) a regex over
+  known refusal language (REFUSAL in nso-watch.js: refus|stand-down|blocked|
+  gated|cannot|failed|no piece|select a piece|...), or (b) the app called
+  setStatus(msg, true) directly, i.e. explicitly marked it bad. "Library
+  placed stacked" hits path (b) - app-library.js's waitForPlaced() calls
+  say('Library placed stacked', true) whenever its own seat() auto-placement
+  optimizer fails and the piece falls back to being stacked at the origin
+  instead of nested onto the plate. The word "stacked" does not match the
+  REFUSAL regex at all; only the explicit isError=true flag makes this a
+  refusal. Functionally this is a soft degradation, not a hard refusal - the
+  piece IS on the plate and IS usable - but the app's own classification is
+  "bad," and the listener correctly inherits that. Worth naming explicitly
+  because it is the one event in this session where "refusal" in the
+  listener's sense does not mean "the operation did not happen."
+
+FINDING 4 - Real refusals (Hollow's second pass) are unambiguous and
+well-tagged.
+  "Hollow refused - a 2 mm wall leaves no cavity..." matches the REFUSAL
+  regex on "refused" and is also presumably setStatus(..., true). No
+  ambiguity here: gate name (wall-vs-material), the numbers that triggered
+  it (2 mm wall, whole piece within 2 mm of its own surface), and a concrete
+  next step ("Hollow thinner, or leave it solid") are all in one line. This
+  is the standard the other status lines can be measured against.
+
+FINDING 5 - No selection-state event.
+  Selecting the piece (selectPlaced(0), the same call a click on the piece
+  makes) produced ZERO listener event - nothing in the status log, nothing
+  in the phantom/consistency checks. Selection is a UI-state change with no
+  corresponding NSOWatch signal at all (by design - it's not a pushUndo, not
+  a status line, not a tool-button click in this driving path). For someone
+  reading the exported JSON after the fact with no video, "how did the piece
+  get selected" is unrecoverable from the listener data alone.
+
+WHAT'S MISSING FOR BUILD VS HYPOTHESIS COMPARISON
+---------------------------------------------------
+- Build-volume/printer-fit state (Finding 1) - not logged at all.
+- HUD text (Finding 2) - excluded by design (docs/WATCH.md), still a gap if
+  anyone treats the export as the full picture.
+- Selection changes (Finding 5) - no event, silent.
+- Geometry-level detail: Hollow's status line is rich (triangle count,
+  cavity volume, wall/floor numbers) but Mirror's success line, while
+  descriptive, doesn't carry the same quantitative payload (no triangle or
+  vertex counts) - inconsistent level of detail between two Finish-menu
+  operations that are otherwise structured the same way (resolve -> gate ->
+  commit).
+- The listener's phantom/consistency checks (state.placed vs the rendered
+  scene) never fired a single event this session (0 open, 0 phantom) - which
+  is either a clean run or evidence the specific triggers (Undo, tool
+  switch, the 4s idle sweep) weren't exercised enough by this three-operation
+  sequence to be a meaningful signal either way.
+
+REFUSAL CATEGORIES: FIRING VS NOT TAGGED
+-------------------------------------------
+Firing, and correctly:
+  - Hollow's second-pass refusal (regex match on "refused").
+  - "Library placed stacked" (explicit isError=true from the app, not a
+    regex match - see Finding 3).
+
+Not exercised this session but present in the codebase and worth a follow-up
+pass (found via keyword search of the buttons this mission didn't touch):
+  Mirror's own refusal paths were NOT triggered - e.g. "Select a raw piece
+  first" (which WAS seen transiently during script debugging, before
+  selection was fixed, and correctly regex-matches "select a"), "Mirror
+  stood down - N painted face(s)..." (paint-related refusal, matches
+  "stand down"), and the float32-round-trip refusal in app-mirror.js
+  ("...is not an exact float32 mirror plane..." - does NOT contain any
+  REFUSAL regex keyword like refuse/blocked/cannot; it would only be tagged
+  if the app also passes isError=true to setStatus, which the code at
+  app-mirror.js line ~301 does: setStatus('Mirror refused - piece unchanged
+  (' + r.reason + ')', true) - so it IS covered, but by wrapping the
+  underlying reason string in "Mirror refused -", not by the reason string
+  itself being refusal-shaped language).
+  Net: the REFUSAL regex is a secondary safety net; the primary signal is
+  the app's own isError=true flag on setStatus calls, and every refusal
+  path checked in app-mirror.js / app-hollow.js does pass that flag. No gap
+  found in THOSE two files. The gap is elsewhere (Finding 1: a whole
+  warning surface that never calls setStatus at all).
+
+FEEDBACK CLARITY - OBSERVATIONS
+----------------------------------
+- Status line text is consistently good: specific numbers, named gates,
+  concrete next actions ("Hollow thinner, or leave it solid").
+- The two-click Mirror flow (dry-run then commit) is a reasonable pattern
+  but is invisible in the listener export unless you already know to expect
+  two "Mirror" events in a row - nothing distinguishes "preview" from
+  "commit" in the log's `op` field for either event (both say "click
+  btn-mirror").
+  op field values: "click btn-mirror" x2, then "op mirrorReplace" for the
+  actual commit result - so the mirror preview's own click IS distinguished
+  from the executing click by which produced the pushUndo-triggered "op"
+  entry vs. the click-triggered one. On reread this is fine; flagging only
+  because it took a second pass through the JSON to see why the same button
+  produced three log lines for what a user experiences as two clicks.
+- Import silently not auto-selecting the placed piece is a real UX gap
+  independent of the listener: a fresh user who imports one piece and
+  immediately reaches for Mirror/Hollow will hit "Select a piece first" /
+  "Select a raw piece first" with no piece deselected visibly on screen to
+  explain why.
+
+DELIVERABLES IN THIS CAPTURE
+-------------------------------
+  listener_orientation_output.json   raw NSOWatch export (events, summary,
+                                      open, report, isOn)
+  final_state.png                    screenshot after export, piece hollowed
+                                      and mirrored, Watch panel open showing
+                                      the full log
+  ORIENTATION_FINDINGS.txt           this file

@@ -1,0 +1,99 @@
+{
+  "events": [
+    {
+      "seq": 1,
+      "time": "04:54:19.680",
+      "iso": "2026-09-23T04:54:19.680Z",
+      "kind": "watch",
+      "level": "info",
+      "msg": "watch on - watch1 - error/status log and state-consistency checks are live",
+      "op": "(nothing yet)",
+      "detail": null
+    },
+    {
+      "seq": 2,
+      "time": "04:54:20.858",
+      "iso": "2026-09-23T04:54:20.858Z",
+      "kind": "status",
+      "level": "info",
+      "msg": "Loading tape_on-edge-single.stl…",
+      "op": "click btn-library",
+      "detail": null
+    },
+    {
+      "seq": 3,
+      "time": "04:54:21.058",
+      "iso": "2026-09-23T04:54:21.058Z",
+      "kind": "status",
+      "level": "info",
+      "msg": "Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize",
+      "op": "click btn-library",
+      "detail": null
+    },
+    {
+      "seq": 4,
+      "time": "04:54:21.061",
+      "iso": "2026-09-23T04:54:21.061Z",
+      "kind": "status",
+      "level": "refusal",
+      "msg": "Library placed stacked",
+      "op": "click btn-library",
+      "detail": null
+    },
+    {
+      "seq": 5,
+      "time": "04:54:25.015",
+      "iso": "2026-09-23T04:54:25.015Z",
+      "kind": "status",
+      "level": "info",
+      "msg": "Mirror: this piece runs along X. Plane 0 is the midpoint (no clean band). Press Mirror to reflect across it, or type another plane.",
+      "op": "click btn-mirror",
+      "detail": null
+    },
+    {
+      "seq": 6,
+      "time": "04:54:28.317",
+      "iso": "2026-09-23T04:54:28.317Z",
+      "kind": "status",
+      "level": "info",
+      "msg": "Mirror done - X across 0 (given plane), cross-section unchanged (0 drifted coordinates), round-trip exact",
+      "op": "op mirrorReplace",
+      "detail": null
+    },
+    {
+      "seq": 7,
+      "time": "04:54:32.796",
+      "iso": "2026-09-23T04:54:32.796Z",
+      "kind": "status",
+      "level": "info",
+      "msg": "Hollowed to a 2 mm wall - 13012 cavity triangle(s) at a 1.302 mm pitch, 16260.867 mm³ of interior removed, wall measured 1.892 mm against a 0.42 mm floor (pitch capped by the grid limit)",
+      "op": "op hollowReplace",
+      "detail": null
+    },
+    {
+      "seq": 8,
+      "time": "04:54:35.815",
+      "iso": "2026-09-23T04:54:35.815Z",
+      "kind": "status",
+      "level": "refusal",
+      "msg": "Hollow refused - a 2 mm wall leaves no cavity anywhere in this piece - every point inside it is within 2 mm of the surface. Hollow thinner, or leave it solid.",
+      "op": "click btn-hollow",
+      "detail": null
+    }
+  ],
+  "summary": {
+    "on": true,
+    "started": "2026-09-23T04:54:19.680Z",
+    "events": 8,
+    "dropped": 0,
+    "open": 0,
+    "by": {
+      "watch": 1,
+      "status": 5,
+      "refusal": 2
+    }
+  },
+  "open": [],
+  "report": "# NSO watch log (watch1)\n# started 2026-09-23T04:54:19.680Z\n\n04:54:19.680  watch  watch on - watch1 - error/status log and state-consistency checks are live\n04:54:20.858  status  Loading tape_on-edge-single.stl…\n04:54:21.058  status  Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize\n04:54:21.061  status/refusal  Library placed stacked\n04:54:25.015  status  Mirror: this piece runs along X. Plane 0 is the midpoint (no clean band). Press Mirror to reflect across it, or type another plane.\n04:54:28.317  status  Mirror done - X across 0 (given plane), cross-section unchanged (0 drifted coordinates), round-trip exact\n04:54:32.796  status  Hollowed to a 2 mm wall - 13012 cavity triangle(s) at a 1.302 mm pitch, 16260.867 mm³ of interior removed, wall measured 1.892 mm against a 0.42 mm floor (pitch capped by the grid limit)\n04:54:35.815  status/refusal  Hollow refused - a 2 mm wall leaves no cavity anywhere in this piece - every point inside it is within 2 mm of the surface. Hollow thinner, or leave it solid.\n\n# 0 mismatch(es) still open at export",
+  "isOn": true
+}
