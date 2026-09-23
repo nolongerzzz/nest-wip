@@ -1,0 +1,1296 @@
+{
+  "watch": {
+    "events": [
+      {
+        "seq": 1,
+        "time": "05:38:28.401",
+        "iso": "2026-09-23T05:38:28.401Z",
+        "kind": "watch",
+        "level": "info",
+        "msg": "watch on - watch1 - error/status log and state-consistency checks are live",
+        "op": "(nothing yet)",
+        "detail": null
+      },
+      {
+        "seq": 2,
+        "time": "05:38:29.631",
+        "iso": "2026-09-23T05:38:29.631Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Loading tape_on-edge-single.stl…",
+        "op": "click btn-library",
+        "detail": null
+      },
+      {
+        "seq": 3,
+        "time": "05:38:29.855",
+        "iso": "2026-09-23T05:38:29.855Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize",
+        "op": "click btn-library",
+        "detail": null
+      },
+      {
+        "seq": 4,
+        "time": "05:38:29.858",
+        "iso": "2026-09-23T05:38:29.858Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Library placed stacked",
+        "op": "click btn-library",
+        "detail": null
+      },
+      {
+        "seq": 5,
+        "time": "05:38:35.055",
+        "iso": "2026-09-23T05:38:35.055Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.",
+        "op": "click btn-library",
+        "detail": null
+      },
+      {
+        "seq": 6,
+        "time": "05:38:35.068",
+        "iso": "2026-09-23T05:38:35.068Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single - drag red line, then Split.",
+        "op": "click btn-library",
+        "detail": null
+      },
+      {
+        "seq": 7,
+        "time": "05:38:36.017",
+        "iso": "2026-09-23T05:38:36.017Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cut @ 32.5 mm (kerf 1 mm) -> tape_on-edge-single-A33 153.0 mm + tape_on-edge-single-B33 33.0 mm [raw]. List: 2 models. Undo: 1.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 8,
+        "time": "05:38:37.367",
+        "iso": "2026-09-23T05:38:37.367Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-A33 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 9,
+        "time": "05:38:38.979",
+        "iso": "2026-09-23T05:38:38.979Z",
+        "kind": "phantom",
+        "level": "error",
+        "msg": "phantom object - the plate holds 2 piece(s); the scene draws 1",
+        "op": "click btn-cut",
+        "detail": null,
+        "trail": [
+          "click Import",
+          "click btn-library",
+          "click btn-cut",
+          "op splitReplace"
+        ]
+      },
+      {
+        "seq": 10,
+        "time": "05:38:38.984",
+        "iso": "2026-09-23T05:38:38.984Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-B33 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 11,
+        "time": "05:38:41.211",
+        "iso": "2026-09-23T05:38:41.211Z",
+        "kind": "cleared",
+        "level": "info",
+        "msg": "cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:38.979)",
+        "op": "idle sweep"
+      },
+      {
+        "seq": 12,
+        "time": "05:38:42.399",
+        "iso": "2026-09-23T05:38:42.399Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X",
+        "op": "click btn-mirror",
+        "detail": null
+      },
+      {
+        "seq": 13,
+        "time": "05:38:43.906",
+        "iso": "2026-09-23T05:38:43.906Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X",
+        "op": "click btn-mirror",
+        "detail": null
+      },
+      {
+        "seq": 14,
+        "time": "05:38:46.113",
+        "iso": "2026-09-23T05:38:46.113Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Undo: 1 piece(s) on plate",
+        "op": "undo splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 15,
+        "time": "05:38:48.287",
+        "iso": "2026-09-23T05:38:48.287Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.",
+        "op": "undo splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 16,
+        "time": "05:38:48.300",
+        "iso": "2026-09-23T05:38:48.300Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single - drag red line, then Split.",
+        "op": "undo splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 17,
+        "time": "05:38:48.546",
+        "iso": "2026-09-23T05:38:48.546Z",
+        "kind": "phantom",
+        "level": "error",
+        "msg": "phantom object - the plate holds 1 piece(s); the scene draws 0",
+        "op": "idle sweep",
+        "detail": null,
+        "trail": [
+          "click btn-library",
+          "click btn-cut",
+          "op splitReplace",
+          "click btn-mirror",
+          "click btn-mirror",
+          "undo splitReplace"
+        ]
+      },
+      {
+        "seq": 18,
+        "time": "05:38:49.089",
+        "iso": "2026-09-23T05:38:49.089Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cut @ 52.5 mm (kerf 1 mm) -> tape_on-edge-single-A53 133.0 mm + tape_on-edge-single-B53 53.0 mm [raw]. List: 2 models. Undo: 1.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 19,
+        "time": "05:38:49.216",
+        "iso": "2026-09-23T05:38:49.216Z",
+        "kind": "cleared",
+        "level": "info",
+        "msg": "cleared (was: phantom object - the plate holds 1 piece(s); the scene draws 0, open since 05:38:48.546)",
+        "op": "click btn-cut"
+      },
+      {
+        "seq": 20,
+        "time": "05:38:49.966",
+        "iso": "2026-09-23T05:38:49.966Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-A53 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 21,
+        "time": "05:38:51.260",
+        "iso": "2026-09-23T05:38:51.260Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-B53 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 22,
+        "time": "05:38:51.306",
+        "iso": "2026-09-23T05:38:51.306Z",
+        "kind": "phantom",
+        "level": "error",
+        "msg": "phantom object - the plate holds 2 piece(s); the scene draws 1",
+        "op": "click btn-cut",
+        "detail": null,
+        "trail": [
+          "op splitReplace",
+          "click btn-mirror",
+          "click btn-mirror",
+          "undo splitReplace",
+          "click btn-cut",
+          "op splitReplace"
+        ]
+      },
+      {
+        "seq": 23,
+        "time": "05:38:52.247",
+        "iso": "2026-09-23T05:38:52.247Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 24,
+        "time": "05:38:52.257",
+        "iso": "2026-09-23T05:38:52.257Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-A53 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 25,
+        "time": "05:38:53.070",
+        "iso": "2026-09-23T05:38:53.070Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cut @ 2.7 mm (kerf 1 mm) -> tape_on-edge-single-A3 2.2 mm + tape_on-edge-single-B3 129.8 mm [display]. List: 3 models. Undo: 2.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 26,
+        "time": "05:38:53.200",
+        "iso": "2026-09-23T05:38:53.200Z",
+        "kind": "cleared",
+        "level": "info",
+        "msg": "cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:51.306)",
+        "op": "click btn-cut"
+      },
+      {
+        "seq": 27,
+        "time": "05:38:54.487",
+        "iso": "2026-09-23T05:38:54.487Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-A3 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 28,
+        "time": "05:38:54.819",
+        "iso": "2026-09-23T05:38:54.819Z",
+        "kind": "status",
+        "level": "info",
+        "msg": "Cutter on tape_on-edge-single-B3 - drag red line, then Split.",
+        "op": "op splitReplace",
+        "detail": null
+      },
+      {
+        "seq": 29,
+        "time": "05:38:55.066",
+        "iso": "2026-09-23T05:38:55.066Z",
+        "kind": "phantom",
+        "level": "error",
+        "msg": "phantom object - the plate holds 3 piece(s); the scene draws 2",
+        "op": "click btn-cut",
+        "detail": null,
+        "trail": [
+          "click btn-mirror",
+          "undo splitReplace",
+          "click btn-cut",
+          "op splitReplace",
+          "click btn-cut",
+          "op splitReplace"
+        ]
+      },
+      {
+        "seq": 30,
+        "time": "05:38:56.437",
+        "iso": "2026-09-23T05:38:56.437Z",
+        "kind": "cleared",
+        "level": "info",
+        "msg": "cleared (was: phantom object - the plate holds 3 piece(s); the scene draws 2, open since 05:38:55.066)",
+        "op": "idle sweep"
+      },
+      {
+        "seq": 31,
+        "time": "05:38:57.374",
+        "iso": "2026-09-23T05:38:57.374Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Select a raw piece first",
+        "op": "click btn-mirror",
+        "detail": null
+      },
+      {
+        "seq": 32,
+        "time": "05:38:58.682",
+        "iso": "2026-09-23T05:38:58.682Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Select a raw piece first",
+        "op": "click btn-mirror",
+        "detail": null
+      },
+      {
+        "seq": 33,
+        "time": "05:39:00.568",
+        "iso": "2026-09-23T05:39:00.568Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Select a raw piece first",
+        "op": "click btn-mirror",
+        "detail": null
+      },
+      {
+        "seq": 34,
+        "time": "05:39:01.888",
+        "iso": "2026-09-23T05:39:01.888Z",
+        "kind": "status",
+        "level": "refusal",
+        "msg": "Select a raw piece first",
+        "op": "click btn-mirror",
+        "detail": null
+      }
+    ],
+    "summary": {
+      "on": true,
+      "started": "2026-09-23T05:38:28.401Z",
+      "events": 34,
+      "dropped": 0,
+      "open": 0,
+      "by": {
+        "watch": 1,
+        "status": 18,
+        "refusal": 7,
+        "phantom object": 4,
+        "cleared": 4
+      }
+    },
+    "open": [],
+    "report": "# NSO watch log (watch1)\n# started 2026-09-23T05:38:28.401Z\n\n05:38:28.401  watch  watch on - watch1 - error/status log and state-consistency checks are live\n05:38:29.631  status  Loading tape_on-edge-single.stl…\n05:38:29.855  status  Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize\n05:38:29.858  status/refusal  Library placed stacked\n05:38:35.055  status  Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.\n05:38:35.068  status  Cutter on tape_on-edge-single - drag red line, then Split.\n05:38:36.017  status  Cut @ 32.5 mm (kerf 1 mm) -> tape_on-edge-single-A33 153.0 mm + tape_on-edge-single-B33 33.0 mm [raw]. List: 2 models. Undo: 1.\n05:38:37.367  status  Cutter on tape_on-edge-single-A33 - drag red line, then Split.\n05:38:38.979  phantom/error  phantom object - the plate holds 2 piece(s); the scene draws 1   [after click btn-cut]\n05:38:38.984  status  Cutter on tape_on-edge-single-B33 - drag red line, then Split.\n05:38:41.211  cleared  cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:38.979)\n05:38:42.399  status/refusal  Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X\n05:38:43.906  status/refusal  Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X\n05:38:46.113  status  Undo: 1 piece(s) on plate\n05:38:48.287  status  Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.\n05:38:48.300  status  Cutter on tape_on-edge-single - drag red line, then Split.\n05:38:48.546  phantom/error  phantom object - the plate holds 1 piece(s); the scene draws 0   [after idle sweep]\n05:38:49.089  status  Cut @ 52.5 mm (kerf 1 mm) -> tape_on-edge-single-A53 133.0 mm + tape_on-edge-single-B53 53.0 mm [raw]. List: 2 models. Undo: 1.\n05:38:49.216  cleared  cleared (was: phantom object - the plate holds 1 piece(s); the scene draws 0, open since 05:38:48.546)\n05:38:49.966  status  Cutter on tape_on-edge-single-A53 - drag red line, then Split.\n05:38:51.260  status  Cutter on tape_on-edge-single-B53 - drag red line, then Split.\n05:38:51.306  phantom/error  phantom object - the plate holds 2 piece(s); the scene draws 1   [after click btn-cut]\n05:38:52.247  status  Cutter open on piece - red line only; pieces stay put. Drag plane, then Split.\n05:38:52.257  status  Cutter on tape_on-edge-single-A53 - drag red line, then Split.\n05:38:53.070  status  Cut @ 2.7 mm (kerf 1 mm) -> tape_on-edge-single-A3 2.2 mm + tape_on-edge-single-B3 129.8 mm [display]. List: 3 models. Undo: 2.\n05:38:53.200  cleared  cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:51.306)\n05:38:54.487  status  Cutter on tape_on-edge-single-A3 - drag red line, then Split.\n05:38:54.819  status  Cutter on tape_on-edge-single-B3 - drag red line, then Split.\n05:38:55.066  phantom/error  phantom object - the plate holds 3 piece(s); the scene draws 2   [after click btn-cut]\n05:38:56.437  cleared  cleared (was: phantom object - the plate holds 3 piece(s); the scene draws 2, open since 05:38:55.066)\n05:38:57.374  status/refusal  Select a raw piece first\n05:38:58.682  status/refusal  Select a raw piece first\n05:39:00.568  status/refusal  Select a raw piece first\n05:39:01.888  status/refusal  Select a raw piece first\n\n# 0 mismatch(es) still open at export",
+    "isOn": true
+  },
+  "stages": [
+    {
+      "t": "2026-09-23T05:38:28.181Z",
+      "label": "app-ready"
+    },
+    {
+      "t": "2026-09-23T05:38:28.668Z",
+      "label": "listener-started",
+      "isOn": true
+    },
+    {
+      "t": "2026-09-23T05:38:30.906Z",
+      "label": "import-status",
+      "status": "Library placed stacked"
+    },
+    {
+      "t": "2026-09-23T05:38:33.236Z",
+      "label": "defect-snapshot:baseline-import",
+      "modelId": 1,
+      "modelName": "tape_on-edge-single",
+      "hasRawTris": true,
+      "size": {
+        "x": 185,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 46924,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 46924,
+        "weldedVerts": 117308,
+        "tris": 46924,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 0,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 0,
+        "coplanar": 0,
+        "piercePairsCount": 0,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 46924,
+          "thinFaces": 0,
+          "sheetFaces": 44323,
+          "minWallMm": 2.5345063477121665,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [],
+        "verdict": "PASS"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:34.857Z",
+      "label": "defect-snapshot:before-cut1",
+      "modelId": 1,
+      "modelName": "tape_on-edge-single",
+      "hasRawTris": true,
+      "size": {
+        "x": 185,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 46924,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 46924,
+        "weldedVerts": 117308,
+        "tris": 46924,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 0,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 0,
+        "coplanar": 0,
+        "piercePairsCount": 0,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 46924,
+          "thinFaces": 0,
+          "sheetFaces": 44323,
+          "minWallMm": 2.5345063477121665,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [],
+        "verdict": "PASS"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:35.221Z",
+      "label": "cut-setup:cut1-x-60",
+      "ok": true,
+      "axis": "x",
+      "origin": -92.5,
+      "span": 185,
+      "bboxMin": -92.5,
+      "bboxMax": 92.5,
+      "requestedLocalX": -60,
+      "clampedLocalX": -60,
+      "mmFromMin": 32.5,
+      "cutT": 0.17567567567567569
+    },
+    {
+      "t": "2026-09-23T05:38:36.832Z",
+      "label": "cut-result:cut1-x-60",
+      "status": "Cut @ 32.5 mm (kerf 1 mm) -> tape_on-edge-single-A33 153.0 mm + tape_on-edge-single-B33 33.0 mm [raw]. List: 2 models. Undo: 1.",
+      "before": {
+        "modelCount": 1,
+        "placedCount": 1,
+        "names": [
+          "tape_on-edge-single"
+        ]
+      },
+      "after": {
+        "modelCount": 2,
+        "placedCount": 2,
+        "names": [
+          "tape_on-edge-single-A33",
+          "tape_on-edge-single-B33"
+        ],
+        "editId": null
+      }
+    },
+    {
+      "t": "2026-09-23T05:38:37.304Z",
+      "label": "cut1-new-pieces",
+      "newNamesCut1": [
+        "tape_on-edge-single-A33",
+        "tape_on-edge-single-B33"
+      ]
+    },
+    {
+      "t": "2026-09-23T05:38:38.923Z",
+      "label": "defect-snapshot:cut1-piece:tape_on-edge-single-A33",
+      "modelId": 2,
+      "modelName": "tape_on-edge-single-A33",
+      "hasRawTris": true,
+      "size": {
+        "x": 153,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 38520,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 38520,
+        "weldedVerts": 96298,
+        "tris": 38520,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 4,
+        "coplanar": 0,
+        "piercePairsCount": 4,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 38517,
+          "thinFaces": 0,
+          "sheetFaces": 36421,
+          "minWallMm": 0.43532562592901947,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 4"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:39.568Z",
+      "label": "defect-snapshot:cut1-piece:tape_on-edge-single-B33",
+      "modelId": 3,
+      "modelName": "tape_on-edge-single-B33",
+      "hasRawTris": true,
+      "size": {
+        "x": 33,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 9552,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 9552,
+        "weldedVerts": 23878,
+        "tris": 9552,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 3,
+        "coplanar": 0,
+        "piercePairsCount": 3,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 9549,
+          "thinFaces": 0,
+          "sheetFaces": 8756,
+          "minWallMm": 0.4692159372834311,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 3"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:39.568Z",
+      "label": "mirror-target-chosen",
+      "mirrorTargetName": "tape_on-edge-single-A33"
+    },
+    {
+      "t": "2026-09-23T05:38:41.145Z",
+      "label": "defect-snapshot:before-mirror-on-cut-result",
+      "modelId": 2,
+      "modelName": "tape_on-edge-single-A33",
+      "hasRawTris": true,
+      "size": {
+        "x": 153,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 38520,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 38520,
+        "weldedVerts": 96298,
+        "tris": 38520,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 4,
+        "coplanar": 0,
+        "piercePairsCount": 4,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 38517,
+          "thinFaces": 0,
+          "sheetFaces": 36421,
+          "minWallMm": 0.43532562592901947,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 4"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:44.473Z",
+      "label": "mirror-on-single-cut-result",
+      "mirrorClick1Status": "Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X",
+      "mirrorClick2Status": "Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X"
+    },
+    {
+      "t": "2026-09-23T05:38:45.976Z",
+      "label": "defect-snapshot:after-mirror-attempt-on-cut-result",
+      "modelId": 2,
+      "modelName": "tape_on-edge-single-A33",
+      "hasRawTris": true,
+      "size": {
+        "x": 153,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 38520,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 38520,
+        "weldedVerts": 96298,
+        "tris": 38520,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 4,
+        "coplanar": 0,
+        "piercePairsCount": 4,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 38517,
+          "thinFaces": 0,
+          "sheetFaces": 36421,
+          "minWallMm": 0.43532562592901947,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 4"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:46.465Z",
+      "label": "undo-to-original",
+      "undoGuard": 1,
+      "modelsNow": [
+        "tape_on-edge-single"
+      ]
+    },
+    {
+      "t": "2026-09-23T05:38:48.108Z",
+      "label": "defect-snapshot:after-undo-to-original",
+      "modelId": 1,
+      "modelName": "tape_on-edge-single",
+      "hasRawTris": true,
+      "size": {
+        "x": 185,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 46924,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 46924,
+        "weldedVerts": 117308,
+        "tris": 46924,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 0,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 0,
+        "coplanar": 0,
+        "piercePairsCount": 0,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 46924,
+          "thinFaces": 0,
+          "sheetFaces": 44323,
+          "minWallMm": 2.5345063477121665,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [],
+        "verdict": "PASS"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:48.464Z",
+      "label": "cut-setup:multi-cut-A-x-40",
+      "ok": true,
+      "axis": "x",
+      "origin": -92.5,
+      "span": 185,
+      "bboxMin": -92.5,
+      "bboxMax": 92.5,
+      "requestedLocalX": -40,
+      "clampedLocalX": -40,
+      "mmFromMin": 52.5,
+      "cutT": 0.28378378378378377
+    },
+    {
+      "t": "2026-09-23T05:38:49.892Z",
+      "label": "cut-result:multi-cut-A-x-40",
+      "status": "Cut @ 52.5 mm (kerf 1 mm) -> tape_on-edge-single-A53 133.0 mm + tape_on-edge-single-B53 53.0 mm [raw]. List: 2 models. Undo: 1.",
+      "before": {
+        "modelCount": 1,
+        "placedCount": 1,
+        "names": [
+          "tape_on-edge-single"
+        ]
+      },
+      "after": {
+        "modelCount": 2,
+        "placedCount": 2,
+        "names": [
+          "tape_on-edge-single-A53",
+          "tape_on-edge-single-B53"
+        ],
+        "editId": null
+      }
+    },
+    {
+      "t": "2026-09-23T05:38:49.893Z",
+      "label": "multi-cutA-new-pieces",
+      "newNamesA": [
+        "tape_on-edge-single-A53",
+        "tape_on-edge-single-B53"
+      ]
+    },
+    {
+      "t": "2026-09-23T05:38:51.193Z",
+      "label": "defect-snapshot:multi-cutA-piece:tape_on-edge-single-A53",
+      "modelId": 4,
+      "modelName": "tape_on-edge-single-A53",
+      "hasRawTris": true,
+      "size": {
+        "x": 133,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 33536,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 33536,
+        "weldedVerts": 83838,
+        "tris": 33536,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 4,
+        "coplanar": 0,
+        "piercePairsCount": 4,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 33533,
+          "thinFaces": 0,
+          "sheetFaces": 31672,
+          "minWallMm": 0.6215519190857289,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 4"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:52.060Z",
+      "label": "defect-snapshot:multi-cutA-piece:tape_on-edge-single-B53",
+      "modelId": 5,
+      "modelName": "tape_on-edge-single-B53",
+      "hasRawTris": true,
+      "size": {
+        "x": 53,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 14304,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 14304,
+        "weldedVerts": 35758,
+        "tris": 14304,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 3,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 3,
+        "coplanar": 0,
+        "piercePairsCount": 3,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 14301,
+          "thinFaces": 0,
+          "sheetFaces": 13305,
+          "minWallMm": 0.46905627420645624,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [
+          "degenerate triangles 3",
+          "self-intersecting (piercing) pairs 3"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:52.060Z",
+      "label": "multi-cutB-target-chosen",
+      "secondTargetName": "tape_on-edge-single-A53"
+    },
+    {
+      "t": "2026-09-23T05:38:52.371Z",
+      "label": "cut-setup:multi-cut-B-x-100",
+      "ok": true,
+      "axis": "x",
+      "origin": -66.5,
+      "span": 133,
+      "bboxMin": -66.5,
+      "bboxMax": 66.5,
+      "requestedLocalX": -100,
+      "clampedLocalX": -63.84,
+      "mmFromMin": 2.6599999999999966,
+      "cutT": 0.02030075187969925
+    },
+    {
+      "t": "2026-09-23T05:38:53.925Z",
+      "label": "cut-result:multi-cut-B-x-100",
+      "status": "Cut @ 2.7 mm (kerf 1 mm) -> tape_on-edge-single-A3 2.2 mm + tape_on-edge-single-B3 129.8 mm [display]. List: 3 models. Undo: 2.",
+      "before": {
+        "modelCount": 2,
+        "placedCount": 2,
+        "names": [
+          "tape_on-edge-single-A53",
+          "tape_on-edge-single-B53"
+        ]
+      },
+      "after": {
+        "modelCount": 3,
+        "placedCount": 3,
+        "names": [
+          "tape_on-edge-single-B53",
+          "tape_on-edge-single-A3",
+          "tape_on-edge-single-B3"
+        ],
+        "editId": null
+      }
+    },
+    {
+      "t": "2026-09-23T05:38:54.421Z",
+      "label": "multi-cutB-new-pieces",
+      "newNamesB": [
+        "tape_on-edge-single-A3",
+        "tape_on-edge-single-B3"
+      ]
+    },
+    {
+      "t": "2026-09-23T05:38:54.743Z",
+      "label": "defect-snapshot:multi-cutB-piece:tape_on-edge-single-A3",
+      "modelId": 6,
+      "modelName": "tape_on-edge-single-A3",
+      "hasRawTris": false,
+      "size": {
+        "x": 2.1999969482421875,
+        "y": 20.938766479492188,
+        "z": 20.82603645324707
+      },
+      "geometryTriCount": 1251,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 1251,
+        "weldedVerts": 3124,
+        "tris": 1251,
+        "openEdges": 5,
+        "nonManifoldEdges": 0,
+        "oddEdges": 5,
+        "flippedEdges": 0,
+        "degenerateTris": 0,
+        "boundaryLoops": 1,
+        "components": 1,
+        "pierce": 7,
+        "coplanar": 0,
+        "piercePairsCount": 7,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 1251,
+          "thinFaces": 13,
+          "sheetFaces": 431,
+          "minWallMm": 0.021932691169589298,
+          "faces": [
+            {
+              "face": 288,
+              "hit": 998,
+              "mm": 0.05723538081176743
+            },
+            {
+              "face": 289,
+              "hit": 996,
+              "mm": 0.05823982710289819
+            },
+            {
+              "face": 290,
+              "hit": 1000,
+              "mm": 0.13415989066337544
+            },
+            {
+              "face": 302,
+              "hit": 996,
+              "mm": 0.07001256483049675
+            },
+            {
+              "face": 303,
+              "hit": 996,
+              "mm": 0.071547345086799
+            },
+            {
+              "face": 304,
+              "hit": 998,
+              "mm": 0.16287747998322782
+            },
+            {
+              "face": 316,
+              "hit": 994,
+              "mm": 0.08214845532822349
+            },
+            {
+              "face": 317,
+              "hit": 994,
+              "mm": 0.08987475316568491
+            },
+            {
+              "face": 318,
+              "hit": 1000,
+              "mm": 0.21829179300667487
+            },
+            {
+              "face": 333,
+              "hit": 998,
+              "mm": 0.041781289688162485
+            },
+            {
+              "face": 334,
+              "hit": 1000,
+              "mm": 0.10368321186279075
+            },
+            {
+              "face": 383,
+              "hit": 1000,
+              "mm": 0.021932691169589298
+            },
+            {
+              "face": 384,
+              "hit": 1000,
+              "mm": 0.06673480144999251
+            }
+          ]
+        },
+        "nonSolid": false,
+        "fails": [
+          "self-intersecting (piercing) pairs 7",
+          "open edges 5 (flag it non-solid if intentional)",
+          "wall/gap under 0.42 mm on 13 face(s), thinnest 0.022 mm"
+        ],
+        "verdict": "FAIL"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:56.084Z",
+      "label": "defect-snapshot:multi-cutB-piece:tape_on-edge-single-B3",
+      "modelId": 7,
+      "modelName": "tape_on-edge-single-B3",
+      "hasRawTris": false,
+      "size": {
+        "x": 129.8000030517578,
+        "y": 20.938766479492188,
+        "z": 34
+      },
+      "geometryTriCount": 33280,
+      "report": {
+        "version": "NSO_Defects/1.0.0",
+        "soupTris": 33280,
+        "weldedVerts": 83198,
+        "tris": 33280,
+        "openEdges": 0,
+        "nonManifoldEdges": 0,
+        "oddEdges": 0,
+        "flippedEdges": 0,
+        "degenerateTris": 0,
+        "boundaryLoops": 0,
+        "components": 1,
+        "pierce": 0,
+        "coplanar": 0,
+        "piercePairsCount": 0,
+        "wall": {
+          "thresholdMm": 0.42,
+          "probeMm": 5,
+          "facesMeasured": 33280,
+          "thinFaces": 0,
+          "sheetFaces": 31474,
+          "minWallMm": 2.5345063477121665,
+          "faces": []
+        },
+        "nonSolid": false,
+        "fails": [],
+        "verdict": "PASS"
+      },
+      "reportError": null
+    },
+    {
+      "t": "2026-09-23T05:38:59.205Z",
+      "label": "mirror-after-multi-cut:tape_on-edge-single-A3",
+      "s1": "Select a raw piece first",
+      "s2": "Select a raw piece first"
+    },
+    {
+      "t": "2026-09-23T05:39:02.432Z",
+      "label": "mirror-after-multi-cut:tape_on-edge-single-B3",
+      "s1": "Select a raw piece first",
+      "s2": "Select a raw piece first"
+    }
+  ],
+  "consoleMsgs": [
+    {
+      "type": "log",
+      "text": "[deploy] {app: http://127.0.0.1:8099/app-join.js?v=inmode1, css: http://127.0.0.1:8099/styles.css?v=libsave1, appV: inmode1, cssV: libsave1}"
+    },
+    {
+      "type": "warning",
+      "text": "[GroupMarkerNotSet(crbug.com/242999)!:A070200014230000]Automatic fallback to software WebGL has been deprecated. Please use the --enable-unsafe-swiftshader (about:flags#enable-unsafe-swiftshader) flag to opt in to lower security guarantees for trusted content."
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1ec00140800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1ec00140800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1ec00140800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "type": "warning",
+      "text": "[.WebGL-0x1ec00140800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:28.401] watch: watch on - watch1 - error/status log and state-consistency checks are live"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:29.631] status: Loading tape_on-edge-single.stl…"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:29.855] status: Loaded: tape_on-edge-single.stl (185x21x34 mm) - drag to move, Open cutter, or Optimize"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:38:29.858] status/refusal: Library placed stacked"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:35.055] status: Cutter open on piece - red line only; pieces stay put. Drag plane, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:35.068] status: Cutter on tape_on-edge-single - drag red line, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[nest] split undo pushed 1 [2, 3]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:36.017] status: Cut @ 32.5 mm (kerf 1 mm) -> tape_on-edge-single-A33 153.0 mm + tape_on-edge-single-B33 33.0 mm [raw]. List: 2 models. Undo: 1."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:37.367] status: Cutter on tape_on-edge-single-A33 - drag red line, then Split."
+    },
+    {
+      "type": "error",
+      "text": "[watch1 05:38:38.979] phantom/error: phantom object - the plate holds 2 piece(s); the scene draws 1  [after click btn-cut]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:38.984] status: Cutter on tape_on-edge-single-B33 - drag red line, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:41.211] cleared: cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:38.979)"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:38:42.399] status/refusal: Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:38:43.906] status/refusal: Mirror refused - the midpoint plane at 16 is not an exact float32 mirror plane along x - 37452 coordinate(s) do not round-trip (worst residual 3.815e-6 mm, example -37.000003814697266). Mirror does not snap the plane. Pass a plane that does, or 0 for X→−X"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:46.113] status: Undo: 1 piece(s) on plate"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:48.287] status: Cutter open on piece - red line only; pieces stay put. Drag plane, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:48.300] status: Cutter on tape_on-edge-single - drag red line, then Split."
+    },
+    {
+      "type": "error",
+      "text": "[watch1 05:38:48.546] phantom/error: phantom object - the plate holds 1 piece(s); the scene draws 0  [after idle sweep]"
+    },
+    {
+      "type": "log",
+      "text": "[nest] split undo pushed 1 [4, 5]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:49.089] status: Cut @ 52.5 mm (kerf 1 mm) -> tape_on-edge-single-A53 133.0 mm + tape_on-edge-single-B53 53.0 mm [raw]. List: 2 models. Undo: 1."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:49.216] cleared: cleared (was: phantom object - the plate holds 1 piece(s); the scene draws 0, open since 05:38:48.546)"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:49.966] status: Cutter on tape_on-edge-single-A53 - drag red line, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:51.260] status: Cutter on tape_on-edge-single-B53 - drag red line, then Split."
+    },
+    {
+      "type": "error",
+      "text": "[watch1 05:38:51.306] phantom/error: phantom object - the plate holds 2 piece(s); the scene draws 1  [after click btn-cut]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:52.247] status: Cutter open on piece - red line only; pieces stay put. Drag plane, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:52.257] status: Cutter on tape_on-edge-single-A53 - drag red line, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[nest] split undo pushed 2 [6, 7]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:53.070] status: Cut @ 2.7 mm (kerf 1 mm) -> tape_on-edge-single-A3 2.2 mm + tape_on-edge-single-B3 129.8 mm [display]. List: 3 models. Undo: 2."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:53.200] cleared: cleared (was: phantom object - the plate holds 2 piece(s); the scene draws 1, open since 05:38:51.306)"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:54.487] status: Cutter on tape_on-edge-single-A3 - drag red line, then Split."
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:54.819] status: Cutter on tape_on-edge-single-B3 - drag red line, then Split."
+    },
+    {
+      "type": "error",
+      "text": "[watch1 05:38:55.066] phantom/error: phantom object - the plate holds 3 piece(s); the scene draws 2  [after click btn-cut]"
+    },
+    {
+      "type": "log",
+      "text": "[watch1 05:38:56.437] cleared: cleared (was: phantom object - the plate holds 3 piece(s); the scene draws 2, open since 05:38:55.066)"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:38:57.374] status/refusal: Select a raw piece first"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:38:58.682] status/refusal: Select a raw piece first"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:39:00.568] status/refusal: Select a raw piece first"
+    },
+    {
+      "type": "warning",
+      "text": "[watch1 05:39:01.888] status/refusal: Select a raw piece first"
+    }
+  ]
+}

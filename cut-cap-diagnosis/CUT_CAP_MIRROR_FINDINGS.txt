@@ -1,0 +1,222 @@
+CUT / CAP / MIRROR DIAGNOSIS - tape_on-edge-single.stl
+==========================================================
+
+SETUP
+-----
+- Piece: library/tape_on-edge-single.stl, loaded via Import -> From Library.
+  Baseline confirmed: 185 x 21 x 34 mm, 46,924 triangles, 0 open edges,
+  0 non-manifold edges, 0 boundary loops, hasRawTris=true. Matches the
+  mission brief's reference numbers exactly.
+- Reference for comparison: the uploaded tape_on-edge-rounded_v8_FINAL.stl
+  (32,862 tris) is byte-identical in triangle count and file size to
+  library/tape_on-edge-single-B101_rounded_v8_FINAL.stl already in the repo
+  (only the 80-byte STL header text differs) - same reference file.
+  IMPORTANT CAVEAT ON THE COMPARISON STEP: v8_FINAL is a rounded, finished
+  32,862-tri design - a different piece lineage from tape_on-edge-single.stl
+  (46,924 tris, sharp edges, comb teeth at one end). Nothing in this app's
+  Cut/Mirror pipeline turns one into the other; v8_FINAL was finished by
+  some other process entirely. A "did the cut+mirror output converge toward
+  v8_FINAL" comparison would be comparing two unrelated shapes, so instead
+  this diagnosis compares cut/mirror output against the ORIGINAL piece's own
+  topology (open edges, tris, hasRawTris) at each stage, which is the
+  meaningful before/after here.
+- Environment: same constraint as the prior orientation-capture session -
+  this sandbox blocks nolongerzzz.github.io and cdn.jsdelivr.net, so this
+  ran against a locally served copy of the current checkout (commit
+  d5f3119, HEAD of this branch / origin/main) with the three.js CDN
+  requests intercepted and fulfilled from the identical three@0.147.0
+  files. index.html was not modified.
+- Tooling: the app's OWN canonical checker, NSO_Defects.locate() (the same
+  function the "Check piece" button in the Finish menu calls), run directly
+  against each model's triangle soup after every stage - not a separate
+  home-rolled edge counter. This is exactly what the button would report.
+
+HEADLINE ANSWER
+---------------
+Mirror does NOT refuse because of the capping the mission suspected. Two
+completely different, independent gates fire, neither one primarily about
+open-edge/manifold defects:
+
+  1. On a piece straight off a FIRST cut (rawTris intact, 0 open edges,
+     fully capped): Mirror's AUTO-PICKED plane (the "just click Mirror with
+     an empty box" default) fails its own float32 round-trip self-check,
+     almost unavoidably, because there is no reason an arbitrary decimal
+     midpoint is an EXACT float32 mirror plane for tens of thousands of
+     arbitrary mesh coordinates. Typing an explicit plane (0 worked here)
+     makes the identical piece mirror successfully on the first try. This
+     is a usability gate, not a topology gate.
+
+  2. On a piece off a SECOND (or later) cut: Mirror refuses immediately
+     with "Select a raw piece first" - BEFORE any geometry is even looked
+     at - because the cut that produced it used the "display" clip engine,
+     which never populates m.rawTris. This fires identically whether that
+     particular output piece is a perfectly clean 0-open-edge shell or a
+     genuinely defective 5-open-edge sliver. The refusal message cannot
+     tell you which.
+
+Capping ITSELF is only actually incomplete once, in one specific spot: a
+~2.2 mm sliver cut off the tooothed end of an already-once-cut piece, which
+is exactly the fail-safe case app-cut.js's own code comments describe
+(capFromEdges walks only clean degree-2 loops and leaves a boundary open
+rather than guess a wrong shape at a junction).
+
+STAGE-BY-STAGE DATA
+--------------------
+All numbers from NSO_Defects.locate() on each model's own triangle soup.
+"engine" is which cut algorithm app-join.js's splitBothSides() used - "raw"
+(NSO's own raw-mesh clipper, rawCut()) or "display" (the THREE.js display-
+geometry clipper, clipGeometrySide()/capFromEdges()).
+
+  piece                          | tris  | open | nonMan | loops | pierce | degen | hasRawTris | minWall
+  --------------------------------|-------|------|--------|-------|--------|-------|------------|--------
+  baseline (tape_on-edge-single)  | 46924 |  0   |   0    |   0   |   0    |   0   |   true     | 2.53 mm
+  CUT 1 @ local X=-60 (32.5mm from min end), engine=raw:
+    -A33 (153.0 mm half)          | 38520 |  0   |   0    |   0   |   4    |   3   |   true     | 0.44 mm
+    -B33 (33.0 mm half)           |  9552 |  0   |   0    |   0   |   3    |   3   |   true     | 0.47 mm
+  after 1 undo -> back to original| 46924 |  0   |   0    |   0   |   0    |   0   |   true     | 2.53 mm
+  MULTI-CUT A @ local X=-40 (52.5mm from min end), engine=raw:
+    -A53 (133.0 mm half)          | 33536 |  0   |   0    |   0   |   4    |   3   |   true     | 0.62 mm
+    -B53 (53.0 mm half)           | 14304 |  0   |   0    |   0   |   3    |   3   |   true     | 0.47 mm
+  MULTI-CUT B on -A53, requested X=-100 (out of that half's own +-66.5mm
+  range, clamped to a 2.7mm-from-min sliver), engine=display (FORCED, by
+  the model's name already matching -[AB]\d+$, independent of position):
+    -A3 (2.2 mm sliver)           |  1251 |  5   |   0    |   1   |   7    |   0   |  FALSE     | 0.02 mm
+    -B3 (129.8 mm remainder)      | 33280 |  0   |   0    |   0   |   0    |   0   |  FALSE     | 2.53 mm
+
+MIRROR ATTEMPTS
+----------------
+  On -A33 (first-gen cut, clean, hasRawTris=true):
+    Click 1 (empty plane box, auto-resolve):
+      "Mirror: this piece runs along X. Plane 16 is the midpoint
+      (no clean band). Press Mirror to reflect across it, or type
+      another plane."
+    Click 2 (commit at the auto-picked plane 16):
+      "Mirror refused - the midpoint plane at 16 is not an exact float32
+      mirror plane along x - 37452 coordinate(s) do not round-trip (worst
+      residual 3.815e-6 mm, example -37.000003814697266). Mirror does not
+      snap the plane. Pass a plane that does, or 0 for X->-X"
+    Piece geometry confirmed BYTE-IDENTICAL before and after the refused
+    attempt (md5 match) - Mirror's "on refusal, tris is the original soup"
+    contract holds exactly.
+    FOLLOW-UP TEST: typing "0" into the plane box and clicking Mirror once
+    (commit path) on the SAME -A33 piece SUCCEEDED:
+      "Mirror done - X across 0 (given plane), cross-section unchanged
+      (0 drifted coordinates), round-trip exact"
+    -> Confirms this is a default-plane-pick usability gate, not a
+       structural block. The piece was mirror-able the whole time.
+
+  On -A3 (2.2 mm sliver, 5 open edges, hasRawTris=false) and
+  -B3 (129.8 mm remainder, 0 open edges, hasRawTris=false):
+    Both: "Select a raw piece first" on the very first click (the empty-box
+    resolve path), for both pieces alike. The message is identical whether
+    the piece is topologically ruined (-A3) or perfectly clean (-B3) -
+    Mirror's rawTris check runs before any geometry inspection at all.
+
+ROOT CAUSE, IN THE CODE
+-------------------------
+app-join.js splitBothSides(): "alreadySplit = /-[AB]\d+$/i.test(model.name)".
+Any model whose name already carries a prior cut's -A<mm>/-B<mm> suffix
+skips the raw-mesh engine UNCONDITIONALLY and goes straight to the display-
+clip fallback - this is a name-pattern branch, not a does-the-raw-path-work
+check. app-core.js addModel()'s own comment even says as much: "[rawTris]
+absent on programmatically rebuilt models (e.g. after a Split), which fall
+back to clipGeometrySide automatically" - true for cut #2 onward, though
+cut #1 in the CURRENT code does preserve rawTris via the "raw" engine
+branch in cutActiveModel()/splitBothSides(), so that comment is stale for
+the first cut specifically.
+
+app-mirror.js NSO_mirrorSelectedModel() / the button's click handler both
+gate on "m.rawTris && m.rawAxis === 'zup'" as their FIRST check, with no
+fallback to derive a soup from display geometry the way getModelRawSoup()
+(used by the defects checker, Hollow, etc.) does. So once a piece loses
+rawTris - which happens unconditionally after cut #2 - Mirror is closed off
+to it permanently, regardless of how clean that piece's own geometry is.
+
+Separately, app-mirror.js NSO_mirrorResolve()'s plane fallback order is:
+given plane -> clean-band cut -> raw bounding-box midpoint. A freshly-cut
+piece routinely has no clean band (the cut itself is what removed the
+symmetric structure the band-scan looks for), so it falls to "midpoint",
+and an arbitrary decimal midpoint is essentially never an exact float32
+mirror plane over tens of thousands of coordinates. This gate is unrelated
+to rawTris/capping and fires even on a perfectly-formed piece.
+
+A SEPARATE, GENUINELY-CAPPING DEFECT
+--------------------------------------
+The one real "capping is incomplete" case found: multi-cut B's 2.2 mm
+sliver (-A3) has 5 open edges, exactly 1 boundary loop, and a measured
+minimum wall of 0.02 mm - i.e. its new cut face did not close. This
+happened cutting through the toothed/comb end of the piece (visible in the
+screenshots - the pink piece's right end), which is exactly the shape
+app-cut.js's own comment anticipates: capFromEdges() walks only clean
+degree-2 boundary loops and, at a junction where the cut plane meets a
+tooth/slot, "the edges stay open (fail-safe) instead of guessing which
+branch belongs to which loop." This is a DELIBERATE fail-safe, not a bug in
+the sense of a crash or silent corruption - but it is silent in the sense
+that cutActiveModel()'s own status line ("Cut @ 2.7 mm ... [display]")
+gives no hint that one side came out with an open cap; you only find out by
+running the defects checker or trying to Mirror it, and even then Mirror's
+"Select a raw piece first" message doesn't say WHY, or that a defects check
+would explain it.
+
+NOISE IN EVERY RAW-ENGINE CUT (not open edges, but real)
+------------------------------------------------------------
+Both halves of BOTH first-generation (raw-engine) cuts came out with 0 open
+edges but small nonzero degenerate-triangle (3, every time) and self-
+intersection/"pierce" pair counts (3-4, every time). This is consistent
+across both cut positions tested (-60 and -40), so it looks systematic to
+the raw cap-triangulation itself (rawFlatCapLoop), not positional. It does
+not block Mirror or any other operation seen in this session, but it is a
+real, reproducible defect class distinct from - and currently invisible
+next to - the open-edge story this mission was chasing.
+
+LISTENER (NSOWatch) OBSERVATIONS
+-----------------------------------
+- Every single Cut in this session (3 of 3) produced a transient "phantom
+  object" finding - "the plate holds N piece(s); the scene draws N-1" -
+  logged within ~1-4 seconds of the click and self-clearing 0.7-2.4 seconds
+  later every time (event log in listener_cut_cap_diagnosis.json). A 4th
+  fired after an idle sweep following Undo + reopening the cutter. None
+  stayed open at export (summary.open: 0). This is the exact class of bug
+  NSOWatch was built to catch (docs/WATCH.md's own worked examples), caught
+  it reliably and consistently, and self-healed every time - but it means
+  anything (a person or a script) reading state.placed/state.models
+  immediately after a Cut click can momentarily see a piece count ahead of
+  what is actually drawn.
+- Mirror's refusal in both forms ("Select a raw piece first" and the
+  float32-round-trip message) is correctly tagged "refusal" in the listener
+  (regex match on "select a" and the app's own isError=true on both).
+- "Library placed stacked" repeated on import here too, same as the
+  orientation-capture session - not re-analyzed, already documented there.
+
+WHAT'S SIMILAR / MISSING / DIVERGENT VS. THE v8_FINAL REFERENCE
+---------------------------------------------------------------
+As noted above, v8_FINAL (32,862 tris, rounded) is not a shape this app's
+Cut/Mirror pipeline on tape_on-edge-single.stl (46,924 tris, sharp,
+comb-toothed) would ever converge toward - different lineage entirely.
+What IS comparable and meaningful:
+  - geometry_after_cut_v1.stl (38,520 tris) = the -A33 half exactly as
+    Split produced it: 0 open edges, fully capped, hasRawTris=true.
+  - geometry_after_mirror_attempt_v1.stl is BYTE-IDENTICAL to the above
+    (same md5) because Mirror refused and, per its own contract, left the
+    piece completely unchanged. There is no topological divergence to
+    report between the two files because there is no byte difference
+    between them at all - which is itself the finding: the refusal is
+    honest and non-destructive.
+
+DELIVERABLES IN THIS CAPTURE
+-------------------------------
+  listener_cut_cap_diagnosis.json      NSOWatch export + full per-stage
+                                        NSO_Defects reports + console log
+  geometry_after_cut_v1.stl            the -A33 half after cut 1, pre-mirror
+  geometry_after_mirror_attempt_v1.stl same piece, post refused Mirror
+                                        (byte-identical - see above)
+  after_cut1.png                       screenshot right after cut 1
+  mirror_attempt_single_cut.png        screenshot of the float32-round-trip
+                                        refusal, with Watch panel open
+  after_multi_cuts.png                 screenshot after the 2nd cut
+                                        (2.2mm sliver visible)
+  mirror_attempt_multi_cut.png         screenshot of "Select a raw piece
+                                        first" on the multi-cut output,
+                                        Watch panel showing the 4th phantom
+  final_state.png                      end-of-session screenshot
+  CUT_CAP_MIRROR_FINDINGS.txt          this file
