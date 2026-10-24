@@ -1,0 +1,1942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nest Optimizer – Smart Plate Packing for 3D Printing</title>
+  <link rel="stylesheet" href="styles.css?v=73eb079a" />
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/STLLoader.js"></script>
+</head>
+<body>
+  <div id="app">
+    <main>
+      <section class="viewport-section">
+        <div id="viewport"></div>
+        <div class="viewport-overlay viewport-overlay-topbar">
+          <!-- The shell: one row along the top, one column down the left edge,
+               Import shared at the corner. Every panel opens at the same spot,
+               just right of the column and under the row (styles.css, "UI shell").
+               Shell v2: the Finish menu's sections and the bottom-left tool
+               strip moved into the row and the column; nothing was removed.
+               Shell v3: the cards regrouped (Add is new; Bend, Lift, Measure &
+               check and Plate went, their contents into the cards), Measure
+               joined the row, and Plate & pieces is pinned open top right.
+               Every control kept its id (tools/nso_shell_v3_test.js). -->
+          <div class="vp-shell-row">
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-import">
+            <summary class="vp-bar-btn" title="Bring a piece in: from a file on this computer, or from the library">Import</summary>
+            <div class="vp-menu-body vp-top-body">
+              <input type="file" id="file-input" accept=".stl,.3mf" multiple class="hidden-quiet" />
+              <button id="btn-load-stl" class="vp-bar-btn" type="button"
+              title="Load an STL or 3MF from this computer">＋ From File</button>
+              <div class="vp-library">
+              <button id="btn-library" class="vp-bar-btn" type="button"
+              aria-haspopup="true" aria-expanded="false"
+              title="Browse the piece library by category">From Library</button>
+              <div id="library-list" class="library-list" role="menu" hidden
+              style="display:none"></div>
+              </div>
+            </div>
+          </details>
+          <!-- MEASURE: the Measure button and its Two points / Edge choice, out of
+               the column's old Measure & check (Check piece went to Check & repair). -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-measure" data-sec="measure">
+            <summary class="vp-bar-btn" title="Measure: the distance between two points, or one edge's length">Measure</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-pair">
+              <button id="btn-measure" class="btn btn-secondary btn-measure" type="button" aria-pressed="false"
+                      title="Click two points on the pieces to read the distance between them in mm, or switch to Edge and click one edge for its length. Corners and edges snap. Measuring changes nothing on the piece. Click this button again to stop; Esc clears the measurement.">Measure</button>
+              <select id="sel-measure-mode" class="vp-select" title="What a measure click means. Two points: click twice, get the distance. Edge: click once near an edge, get that edge's whole length." aria-label="Measure mode">
+                <option value="span" selected>Two points</option>
+                <option value="edge">Edge</option>
+              </select>
+            </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-move">
+            <summary class="vp-bar-btn" title="Raise, lower and nudge the selected piece">Move</summary>
+            <div class="vp-menu-body vp-top-body">
+              <!-- Raise / Lower are gone: the checkbox below is the vertical
+                   control now, with the slider and the arrow keys. liftSelected()
+                   itself is untouched and still has its other callers. -->
+              <label class="vp-flag vp-flag-movevert" title="Vertical placement: the camera drops to eye level with the piece from outside the plate, a slider appears beside it, and the arrow keys move it 0.25 mm at a time - up/down to raise, left/right across the line to the nearest piece. Free drag is off while this is on.">
+                <input type="checkbox" id="chk-move-vertical"><span class="vp-flag-face">Vertical</span>
+              </label>
+              <button id="btn-to-plate" class="vp-bar-btn adjust-btn" disabled
+                      title="Bring the selected piece straight down to rest on the plate, in one press - whatever raised it. The Vertical slider and arrows only write the lift, 0.25 mm a press, so a piece Seat stacked on a 20 mm target is eighty presses from the plate - and on a piece Seat laid on a slope the first step throws that angle away, because it rebuilds the pose from the record. This reads the piece's own box instead and puts its lowest point on the bed, keeping its place on the plate and its rotation. Refused on a locked piece, and one Undo puts it back.">To plate</button>
+              <button id="btn-nudge-fwd" class="vp-bar-btn adjust-btn" disabled>↑</button>
+              <button id="btn-nudge-back" class="vp-bar-btn adjust-btn" disabled>↓</button>
+              <button id="btn-nudge-left" class="vp-bar-btn adjust-btn" disabled>←</button>
+              <button id="btn-nudge-right" class="vp-bar-btn adjust-btn" disabled>→</button>
+            </div>
+          </details>
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-rotate">
+            <summary class="vp-bar-btn" title="Turn the selected piece: 90° steps, or by the arrowheads on its rings">Rotate</summary>
+            <div class="vp-menu-body vp-top-body">
+              <button id="btn-rot-left" class="vp-bar-btn adjust-btn" disabled>⟲ 90°</button>
+              <button id="btn-rot-right" class="vp-bar-btn adjust-btn" disabled>90° ⟳</button>
+              <!-- Which rings are drawn on the piece. Turn is about the
+                   plate's vertical; the two leans are about the level sides
+                   of the piece's footprint as it lies, and their rings turn
+                   with it, Tip and Flip included. Front/back
+                   is the lean that tips the piece along the long side of its
+                   footprint, side/side the one across it: app-rotate-handles.js
+                   decides which ring that is, ticks the row of the ring that
+                   holds the name, and rewrites these two tooltips (the text
+                   here is what a square footprint says).
+                   Turn only on every opening; nothing here is saved. -->
+              <label class="vp-flag vp-flag-rotring vp-flag-rotring-turn" title="A ring about the plate's vertical. Click an arrowhead to turn 1°, drag it to swing round the ring.">
+                <input type="checkbox" id="chk-rot-ring-turn" checked><span class="vp-flag-face">Turn (horizontal)</span>
+              </label>
+              <label class="vp-flag vp-flag-rotring vp-flag-rotring-fb" title="Tips the piece front over back, about a level side of its footprint: its front edge goes up as the back goes down. (This footprint is square, so there is no long side to follow.) Click an arrowhead to lean 1°, drag it to swing round the ring.">
+                <input type="checkbox" id="chk-rot-ring-fb"><span class="vp-flag-face">Lean front/back</span>
+              </label>
+              <label class="vp-flag vp-flag-rotring vp-flag-rotring-ss" title="Tips the piece side over side, about the other level side of its footprint: one side edge goes up as the other goes down. (This footprint is square, so there is no long side to follow.) Click an arrowhead to lean 1°, drag it to swing round the ring.">
+                <input type="checkbox" id="chk-rot-ring-ss"><span class="vp-flag-face">Lean side/side</span>
+              </label>
+            </div>
+          </details>
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-tip">
+            <summary class="vp-bar-btn" title="Set which way up the piece rests, and tilt it by degrees">Tip</summary>
+            <div class="vp-menu-body vp-top-body">
+              <button id="btn-flip" class="vp-bar-btn adjust-btn" disabled
+                      title="Lay the piece down on its long horizontal edge - a quarter turn about whichever axis that edge runs along.">Tip on side</button>
+              <button id="btn-tip" class="vp-bar-btn adjust-btn" disabled
+                      title="Stand the piece up on its end. Each press takes the next face round to the plate.">Stand</button>
+              <button id="btn-flip-over" class="vp-bar-btn adjust-btn" disabled
+                      title="Turn the piece upside down from wherever it is now - a half turn about a horizontal axis, so the face on the plate ends up on top.">Flip</button>
+              <button id="btn-tip-face" class="vp-bar-btn adjust-btn" disabled aria-pressed="false"
+                      title="Click a face or an edge on the piece and it re-seats to rest on it. Picking the bottom face lays it flat, which is what the old Flat button did.">Tip on face</button>
+              <!-- Tilt lifts ONE EDGE by degrees. That is a different motion from
+                   Rotate, which spins the piece about its own centre; the two are
+                   separate controls on purpose and neither calls the other. -->
+              <button id="btn-tilt-up" class="vp-bar-btn adjust-btn" disabled title="Tilt: lift the far edge 15°">Tilt ↑</button>
+              <button id="btn-tilt-dn" class="vp-bar-btn adjust-btn" disabled title="Tilt: lift the near edge 15°">Tilt ↓</button>
+              <button id="btn-bank-up" class="vp-bar-btn adjust-btn" disabled title="Tilt: lift the left edge 15°">Tilt →</button>
+              <button id="btn-bank-dn" class="vp-bar-btn adjust-btn" disabled title="Tilt: lift the right edge 15°">Tilt ←</button>
+              <p class="hint" style="margin:2px 0 0">Arrow keys tilt while this menu is open.</p>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-align">
+            <summary class="vp-bar-btn" title="Line B up on A: edges, centres, Center lock">Align</summary>
+            <div class="vp-menu-body vp-top-body">
+              <button id="btn-join-align" class="btn btn-secondary" type="button">Align edges</button>
+              <button id="btn-join-cx" class="btn btn-secondary" type="button">Center X</button>
+              <button id="btn-join-cz" class="btn btn-secondary" type="button">Center Z</button>
+              <div class="edit-row">
+                <button id="btn-center-lock" class="btn btn-secondary" type="button"
+                        title="Slide B in XZ until its centre sits on the target point on A. Rough placement - Seat / Align still do the fine work.">Center lock</button>
+                <button id="btn-center-lock-pick" class="btn btn-secondary" type="button"
+                        title="Click a point on A to lock onto instead of A's own centre. Right-click this button to drop a stored target.">Pick target</button>
+              </div>
+              <select id="center-lock-ref" title="Which point on each piece Center lock reads, seen top-down">
+                <option value="bbox">Lock on bounding-box centre</option>
+                <option value="centroid">Lock on centroid</option>
+              </select>
+            </div>
+          </details>
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-gen">
+            <summary class="vp-bar-btn" title="Generate a piece: stock to carve from, a vessel on the wheel, a relief slab from a picture, or a silicone mold of the selected piece; or check a photogrammetry capture">Gen+</summary>
+            <div class="vp-menu-body vp-top-body">
+              <details class="vp-menu vp-wheel-menu">
+              <summary>Wheel</summary>
+              <div class="vp-menu-body vp-wheel">
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="The finished vessel's height. The ball is sized from it by Pappus's centroid theorem: a thin-shell estimate of the vessel plus a real waste margin.">H <input type="number" id="inp-wheel-height" min="10" max="900" step="1" placeholder="mm"></label>
+              <label class="vp-clone" title="The finished vessel's radius. Blank means half the height.">R <input type="number" id="inp-wheel-radius" min="5" max="450" step="1" placeholder="mm"></label>
+              </div>
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="Wall thickness. Default 3 mm - a typical thrown wall. Refused under the nozzle-safety floor from nso_thickness.js.">W <input type="number" id="inp-wheel-wall" min="0.4" max="30" step="0.1" placeholder="3"></label>
+              <label class="vp-clone" title="Nozzle diameter. Sets the wall floor: nozzle x 1.05.">N <input type="number" id="inp-wheel-nozzle" min="0.1" max="2" step="0.05" placeholder="0.4"></label>
+              </div>
+              <div class="vp-row vp-row-full">
+              <button id="btn-wheel-ball" class="btn btn-secondary" type="button"
+              title="Centre a smooth ball of clay, sized from the target height by Pappus's centroid theorem.">Ball</button>
+              </div>
+              <div class="vp-row vp-row-extend">
+              <button id="btn-wheel-open" class="btn btn-secondary" type="button"
+              title="One push down the middle. Turns the single outer profile into two - outer and inner - and everything after this is a shell.">Open</button>
+              <input type="number" id="inp-wheel-depth" min="1" max="900" step="1"
+              placeholder="deep" aria-label="Opening depth, mm">
+              </div>
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="Height on the piece to pull at - any height, not only the rim.">Z <input type="number" id="inp-wheel-pull-z" step="0.5" placeholder="mm"></label>
+              <label class="vp-clone" title="How far out (or in, if negative) to move the wall there.">Δr <input type="number" id="inp-wheel-pull-dr" step="0.5" placeholder="mm"></label>
+              </div>
+              <div class="vp-row vp-row-full">
+              <button id="btn-wheel-pull" class="btn btn-secondary" type="button"
+              title="Drag-shape the profile at that height. The drag points are spline-fitted and the form is revolved to a clean solid. Refuses if it would run past the clay on the wheel or take the wall under the nozzle floor - and says which.">Pull</button>
+              </div>
+              <div class="vp-row vp-row-extend">
+              <button id="btn-wheel-trim" class="btn btn-secondary" type="button"
+              title="Level the base once the form is set. The clay taken off comes off the budget too.">Trim</button>
+              <input type="number" id="inp-wheel-trim-z" min="0" max="900" step="0.5"
+              placeholder="base z" aria-label="Trim base to height, mm">
+              </div>
+              <div class="vp-row vp-row-extend">
+              <button id="btn-wheel-rim" class="btn btn-secondary" type="button"
+              title="Add height at the rim. This is Extend - the same axis-preserving stretch, on the same gate - not a second copy of it. Needs a straight-walled band to insert into.">Rim +</button>
+              <input type="number" id="inp-wheel-rim-mm" min="0.1" max="900" step="0.5"
+              placeholder="mm" aria-label="Extend rim by, mm">
+              </div>
+              </div>
+              </details>
+              <!-- Stock is a shelf: one tile per shape nso_stock.js makes, no fields.
+                   app-stock.js draws each tile once, from NSO_Stock.make itself, and a
+                   click drops that shape on the plate at its default size. The Scale
+                   card is how it is sized. -->
+              <details class="vp-menu vp-stock-menu">
+              <summary>Stock</summary>
+              <div class="vp-menu-body vp-stock">
+              <div id="stock-shelf" class="vp-stock-shelf" role="group" aria-label="Stock shapes">
+              <button id="btn-stock-box" class="stock-tile" type="button" data-shape="box" aria-label="Box"
+              title="Box: a block. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-cylinder" class="stock-tile" type="button" data-shape="cylinder" aria-label="Cylinder"
+              title="Cylinder: a plain round bar. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-sphere" class="stock-tile" type="button" data-shape="sphere" aria-label="Sphere"
+              title="Sphere: a ball. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-capsule" class="stock-tile" type="button" data-shape="capsule" aria-label="Capsule"
+              title="Capsule: a bar with a hemisphere at each end. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-ellipsoid" class="stock-tile" type="button" data-shape="ellipsoid" aria-label="Ellipsoid"
+              title="Ellipsoid: a stretched or squashed ball. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-torus" class="stock-tile" type="button" data-shape="torus" aria-label="Torus"
+              title="Torus: a ring with a round section. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-tube" class="stock-tile" type="button" data-shape="tube" aria-label="Tube"
+              title="Tube: a pipe, bored through. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              <button id="btn-stock-cone" class="stock-tile" type="button" data-shape="cone" aria-label="Cone"
+              title="Cone: a cone, to a point. One click puts it on the plate at its default size, selected - size it with Scale. Click again for another."><canvas width="56" height="56" aria-hidden="true"></canvas></button>
+              </div>
+              </div>
+              </details>
+              <!-- Picture: an image becomes a relief slab, a flat base with a
+                   dense heightfield on top. nso_relief.js builds it,
+                   app-relief.js wires this card. See docs/RELIEF.md. -->
+              <details class="vp-menu vp-relief-menu" id="menu-relief">
+              <summary>Picture</summary>
+              <div class="vp-menu-body vp-relief">
+              <input type="file" id="relief-file" accept="image/*,.heic,.heif" style="display:none" aria-label="Picture to turn into a relief slab">
+              <div class="vp-row vp-row-full">
+              <button id="btn-relief-pick" class="btn btn-secondary" type="button"
+              title="Pick a picture - a photo, a scan, anything the browser can open (HEIC too, where the browser can read it: Safari can). It is read at full size; nothing is uploaded anywhere.">Choose picture&hellip;</button>
+              </div>
+              <p id="relief-file-name" class="hint relief-file-name"></p>
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="The finished slab's WIDTH in mm. A picture has pixels, not millimetres, so this is the one number it cannot supply: mm per pixel is this divided by the picture's width, and the depth follows its aspect.">Width <input type="number" id="inp-relief-width" value="60" min="1" max="900" step="1" aria-label="Width, mm"></label>
+              <label class="vp-clone" title="Thickness of the flat base under the relief, mm.">Base <input type="number" id="inp-relief-base" value="2" min="0.1" max="50" step="0.1" aria-label="Base, mm"></label>
+              </div>
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="Height of the relief above the base, mm: the darkest part of the picture stands this much above it (the brightest, with Bright is up).">Relief <input type="number" id="inp-relief-relief" value="2" min="0" max="50" step="0.1" aria-label="Relief, mm"></label>
+              <label class="vp-clone" title="Detail: millimetres per sample. Every sample is the average of the picture over its own square, so nothing aliases. Finer is more triangles.">Detail <input type="number" id="inp-relief-detail" value="0.3" min="0.01" max="20" step="0.01" aria-label="Detail, mm per sample"></label>
+              </div>
+              <div class="vp-row vp-row-opts">
+              <label class="vp-clone" title="How many heights: the picture's tones in that many equal bands after auto-contrast. Smooth keeps every tone.">Levels <select id="sel-relief-levels" aria-label="Levels">
+              <option value="2" selected>2</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+              <option value="16">16</option>
+              <option value="smooth">Smooth</option>
+              </select></label>
+              </div>
+              <label class="vp-check" title="Raise the bright parts instead of the dark ones.">
+              <input type="checkbox" id="chk-relief-bright"> Bright is up
+              </label>
+              <p id="relief-tris" class="hint relief-tris" aria-live="polite">Pick a picture</p>
+              <div class="vp-row vp-row-full">
+              <button id="btn-relief-make" class="btn btn-secondary" type="button" disabled
+              title="Build the slab and open it in G-scope to look at. Nothing goes on the plate: Back to Picture there brings you here with everything as it was, Make again replaces the slab, and Export to plate in G-scope is what puts it on the plate, named after the file.">Make piece</button>
+              <button id="btn-relief-undo" class="btn btn-secondary" type="button" disabled
+              title="Step back to the previous slab: it goes back into G-scope, and the photo and settings it was made with come back here. One step - only the previous attempt is kept.">Undo</button>
+              </div>
+              </div>
+              </details>
+              <!-- Mold: a two-piece interlocking mold from the selected piece, to print
+                   and cast silicone in. nso_mold.js builds it (the Cut engine's clean
+                   split, Subtract, Union), app-mold.js wires this card. See docs/MOLD.md. -->
+              <details class="vp-menu vp-mold-menu" id="menu-mold">
+              <summary>Mold</summary>
+              <div class="vp-menu-body vp-mold" id="mold-card">
+              <p id="mold-status" class="hint mold-status">Select a piece, then open Mold.</p>
+              <div class="cut-miter">
+              <svg id="mold-dial" class="cut-dial" viewBox="0 0 100 100" width="72" height="72"
+                   role="slider" tabindex="0" aria-label="Tilt direction, degrees" aria-valuemin="0" aria-valuemax="359" aria-valuenow="0">
+                <circle class="cut-dial-rail" cx="50" cy="50" r="40"></circle>
+                <g class="cut-dial-ticks">
+                  <line x1="50" y1="6" x2="50" y2="14"></line><line x1="94" y1="50" x2="86" y2="50"></line>
+                  <line x1="50" y1="94" x2="50" y2="86"></line><line x1="6" y1="50" x2="14" y2="50"></line>
+                  <line x1="81.1" y1="18.9" x2="77.6" y2="22.4"></line><line x1="81.1" y1="81.1" x2="77.6" y2="77.6"></line>
+                  <line x1="18.9" y1="81.1" x2="22.4" y2="77.6"></line><line x1="18.9" y1="18.9" x2="22.4" y2="22.4"></line>
+                </g>
+                <g id="mold-dial-turn" transform="rotate(0 50 50)">
+                  <line class="cut-dial-blade" x1="50" y1="22" x2="50" y2="78"></line>
+                  <circle id="mold-dial-handle" class="cut-dial-handle" cx="50" cy="10" r="7"></circle>
+                </g>
+                <text id="mold-dial-deg" class="cut-dial-deg" x="50" y="54" text-anchor="middle">0°</text>
+              </svg>
+              <div class="cut-miter-side mold-lean">
+              <label class="vp-clone" title="Which way the blade leans: degrees clockwise seen from above, 0 = toward the top of the screen. Drag the handle round the wheel, or type. It leans only once Tilt is above 0."><span>Lean toward</span> <input type="number" id="mold-heading" class="cut-no-spin" min="0" max="359" step="1" value="0" aria-label="Lean toward, degrees"></label>
+              <label class="vp-clone" title="How far the blade leans off level, degrees. 0 = a flat parting plane."><span>Tilt &deg;</span> <input type="number" id="mold-tilt" class="cut-no-spin" min="0" max="60" step="1" value="0" aria-label="Tilt, degrees"></label>
+              </div>
+              </div>
+              <input type="range" id="mold-slider" min="1" max="99" step="0.1" value="50" aria-label="Parting plane height, mm" />
+              <div class="edit-row cut-mm-row">
+              <button id="btn-mold-nudge-m" class="btn btn-secondary" type="button" aria-label="Blade 0.1 mm down" title="0.1 mm down (Shift: 1 mm)">&larr;</button>
+              <input type="number" id="mold-mm" class="cut-no-spin" value="50" min="0.5" max="400" step="0.1" aria-label="Parting plane, mm from the piece's low end" title="The blade's height above the piece's low end, where it crosses the piece's middle line.">
+              <button id="btn-mold-nudge-p" class="btn btn-secondary" type="button" aria-label="Blade 0.1 mm up" title="0.1 mm up (Shift: 1 mm)">&rarr;</button>
+              </div>
+              <p id="mold-lock" class="hint mold-lock" aria-live="polite" title="Faces of the piece that would lock a half (they face away from that half's pull, on its side of the blade) are tinted on the piece. A warning only: silicone pulls out of small undercuts.">&mdash;</p>
+              <div class="mold-fields">
+              <label class="vp-clone" title="Mold wall around the piece, each side, mm. Default 10."><span>Wall</span> <input type="number" id="mold-wall" value="10" min="0" max="100" step="0.5" aria-label="Wall, mm"></label>
+              <label class="vp-clone" title="Mold above and below the piece, mm. Default 15."><span>Top/bottom</span> <input type="number" id="mold-cap" value="15" min="0" max="100" step="0.5" aria-label="Top and bottom, mm"></label>
+              <label class="vp-clone" title="Diameter of the four registration cones at their base, on the parting face. The sockets are 0.4 mm wider."><span>Key &Oslash;</span> <input type="number" id="mold-key-dia" value="6" min="1" max="30" step="0.5" aria-label="Key diameter, mm"></label>
+              <label class="vp-clone" title="How far each cone stands proud of the parting face, mm. The sides are at 45&deg;, so it cannot be more than half the diameter."><span>Key h</span> <input type="number" id="mold-key-h" value="3" min="0.5" max="15" step="0.5" aria-label="Key height, mm"></label>
+              </div>
+              <svg id="mold-plan" class="mold-plan" viewBox="0 0 120 76" role="img" aria-label="Plan view: block, piece, keys, pour point and vent"></svg>
+              <p id="mold-pour" class="hint mold-pour" aria-live="polite">&mdash;</p>
+              <p id="mold-readout" class="cut-readout mold-readout" aria-live="polite"></p>
+              <div class="vp-row vp-row-pair">
+              <button id="btn-mold-make" class="btn btn-secondary" type="button" disabled
+              title="Make two pieces beside the original, 'mold A' and 'mold B': the block around the piece with the piece taken out, split at the blade so the faces mate exactly, four cone keys and sockets, a Ø8 sprue to the highest point and a Ø3 vent. Both lie open, parting face up. The piece is untouched. One Undo removes both; pressing it again replaces the pair.">Generate mold</button>
+              <button id="btn-mold-pour-reset" class="btn btn-secondary" type="button"
+              title="Put the pour point back at the cavity's highest point (and the sprue straight up to the top).">Pour: top</button>
+              </div>
+              </div>
+              </details>
+              <details class="vp-menu vp-sub-menu vp-photo-menu" id="menu-photo">
+                <summary title="Check a photogrammetry capture against the capture contract">Photo</summary>
+                <div class="vp-menu-body vp-top-body" id="photoset-card">
+                  <p class="hint">Check a photogrammetry capture against the capture contract
+                  before any reconstruction time is spent on it. Nothing is reconstructed here.</p>
+                  <input type="file" id="photoset-input" accept="image/*" multiple class="hidden-quiet" />
+                  <div class="edit-row" style="align-items:center;gap:8px;flex-wrap:wrap;">
+                  <button id="btn-photoset-pick" class="btn btn-secondary" type="button"
+                  title="Pick the whole shoot at once. Each frame is read for EXIF and measured for focus and framing; nothing is uploaded anywhere.">Choose photos&hellip;</button>
+                  <button id="btn-photoset-report" class="btn btn-secondary" type="button" disabled>Report</button>
+                  <button id="btn-photoset-clear" class="btn btn-ghost" type="button" disabled>Clear</button>
+                  </div>
+                  <p id="photoset-progress" class="hint" hidden></p>
+                  <p id="photoset-verdict" class="photoset-verdict" hidden></p>
+                </div>
+              </details>
+            </div>
+          </details>
+          <button id="btn-lock-pos" class="vp-bar-btn btn-lock-pos" type="button" disabled aria-pressed="false" title="Lock the selected piece's position. A locked piece refuses drag, the nudge arrows, Raise/Lower and the pose buttons, so a stray click cannot move it. Seat, Center, Align and Skin still place it. Shown by a teal outline and a 'locked' tag.">🔒 Lock position</button>
+          <button id="btn-plate-lock" class="vp-bar-btn btn-plate-lock" type="button" disabled aria-pressed="false" title="Lock the plate configuration: hold every piece where it is, in their current relative positions, in one action. Separate from the per-piece lock - it sets no piece flag, so unlocking the plate gives back exactly the piece locks you had.">🔒 Lock plate</button>
+          <!-- UNDO with REDO under it, the same stack as REMOVE / CLEAR PLATE and
+               EXPORT / OPTIMIZE: one slab tall in the row, the second below it. -->
+          <div class="vp-shell-stack" id="stack-undo">
+            <button id="btn-undo" class="vp-bar-btn" type="button" disabled>↶ Undo</button>
+            <button id="btn-redo" class="vp-bar-btn" type="button" disabled
+                    title="Nothing to redo">↷ Redo</button>
+          </div>
+          <!-- REMOVE with CLEAR PLATE under it, EXPORT with OPTIMIZE under it: two
+               stacks, each as wide as its wider label and one slab tall in the row,
+               so the column still starts under Import. Optimize is the old Pack
+               menu's one button; Clear plate came from the old Plate menu. -->
+          <div class="vp-shell-stack">
+            <button id="btn-delete-placed" class="vp-bar-btn" type="button" disabled
+                    title="Delete the selected piece from the plate. One Undo puts it back.">⌫ Remove</button>
+            <button id="btn-clear-plate" class="vp-bar-btn" type="button"
+                    title="Take every piece off the plate. The loaded pieces stay in the Pieces list.">Clear plate</button>
+          </div>
+          <div class="vp-shell-stack">
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-export">
+            <summary class="vp-bar-btn" title="Everything the Export card held: format, cooling profile, downloads, Save to Library, Delete model">Export</summary>
+            <div class="vp-menu-body vp-top-body" id="export-card">
+              <label class="hint" for="export-format" style="margin-bottom:4px;display:block">Format</label>
+              <select id="export-format" title="File format for both export buttons">
+              <option value="stl">STL</option>
+              <option value="3mf">3MF - Bambu Studio project, cooling settings baked in</option>
+              </select>
+              <div id="cooling-profile-row" hidden>
+              <label class="hint" for="cooling-profile" style="margin-bottom:4px;display:block">Cooling profile</label>
+              <select id="cooling-profile" title="Cooling / overhang-fan settings baked into the 3MF"></select>
+              <p class="hint" id="cooling-profile-note"></p>
+              </div>
+              <button id="btn-export-model" class="btn btn-primary" type="button">Download selected STL</button>
+              <!-- Save As: the same selected piece, the same STL bytes, into the
+              Library instead of onto your disk. app-library-save.js binds it;
+              deleting this button and that script tag removes the feature. -->
+              <button id="btn-library-save" class="btn btn-secondary" type="button"
+              title="Save the selected piece into the Library catalog">Save selected to Library</button>
+              <button id="btn-export-stl" class="btn btn-secondary" type="button" disabled>Export plate STL</button>
+              <button id="btn-delete-model" class="btn btn-secondary" type="button">Delete model</button>
+            </div>
+          </details>
+            <button id="btn-optimize" class="vp-bar-btn" type="button" disabled
+                    title="Optimize plate: nest the pieces on the plate">Optimize</button>
+          </div>
+          </div>
+          <!-- PLATE & PIECES: the old Plate menu's Plate and Pieces members, pinned
+               open in the top-right corner as one panel - always visible, never a
+               drop-down, so no one-panel-at-a-time rule ever shuts it. The row keeps
+               clear of it (styles.css, --plate-panel-w); the pieces list is the same
+               #model-list renderModelList() fills, so it updates live. -->
+          <section id="plate-panel" class="vp-plate-panel" aria-label="Plate and pieces">
+            <div id="menu-plate" class="vp-plate-sec">
+              <p class="vp-plate-head" title="Plate size, bed grid and snap">Plate</p>
+                <select id="plate-select">
+                  <option value="a1mini">A1 Mini 180</option>
+                  <option value="a1">A1 / P1S / X1C 256</option>
+                  <option value="prusa">Prusa 250 × 210</option>
+                  <option value="ender">Ender 220</option>
+                  <option value="custom">Custom…</option>
+                </select>
+                <div id="custom-size" class="custom-size hidden">
+                  <label>W <input type="number" id="custom-w" value="180" min="50" max="500"></label>
+                  <label>D <input type="number" id="custom-d" value="180" min="50" max="500"></label>
+                  <label>H <input type="number" id="custom-h" value="180" min="20" max="900"
+                                title="Build height. The plate picker has never carried one; the build-volume warning needs it."></label>
+                </div>
+                <div class="plate-info hidden-quiet">
+                  <span id="plate-dims">180 × 180 mm</span>
+                  <span id="plate-area">32,400 mm²</span>
+                </div>
+                <div class="plate-grid-controls">
+                  <label class="hint" for="plate-grid-show">Bed grid (10 mm)</label>
+                  <select id="plate-grid-show" title="A flat reference grid fixed to the plate. It is drawn only - it never takes a click.">
+                    <option value="auto">Auto - while positioning</option>
+                    <option value="on" selected>Always on</option>
+                    <option value="off">Off</option>
+                  </select>
+                  <label class="plate-grid-snap-row" for="chk-plate-grid-snap"
+                         title="A soft pull toward the nearest grid intersection while you drag. It assists, it does not lock - drag away from a line at any time.">
+                    <input type="checkbox" id="chk-plate-grid-snap"> Snap to grid
+                  </label>
+                </div>
+                <p id="build-volume-warning" class="build-warning" hidden></p>
+            </div>
+            <div id="menu-pieces" class="vp-plate-sec">
+              <p class="vp-plate-head" title="The pieces loaded, and Clone">Pieces</p>
+              <div id="model-list" class="model-list"></div>
+              <div class="edit-row" style="margin-top:8px;align-items:center;gap:8px;flex-wrap:wrap;">
+                <label for="clone-count">Clone</label>
+                <input id="clone-count" type="number" min="1" max="20" value="1" style="width:4rem;" />
+                <button id="btn-clone" class="btn btn-secondary" type="button" disabled>Clone piece</button>
+              </div>
+            </div>
+          </section>
+          <!-- The column: G-scope under Import, then make/edit (Scale .. Subtract),
+               surface (Shape .. Sculpt), and at the bottom Check & repair on its own
+               over the view row (X-ray, Eye, Frame). Shell v3: Add is new; Bend, Lift,
+               Measure & check and Plate went - their contents are in the cards. -->
+          <div class="vp-shell-col">
+          <!-- G-scope: the ONE G-code / microscope tool. It lays an inspector
+               OVER whatever is on the plate, the way X-ray acts on what is
+               already there; a sliced .gcode.3mf import (by content, not by
+               name) lands in it without a button press and puts nothing on
+               the plate. Selections leave only through Export or Crop.
+               The old G-code-onto-the-plate door (#btn-gcode) was merged
+               into this one. See docs/GCODE-MICROSCOPE.md, "G-scope". -->
+          <button id="btn-microscope" class="vp-bar-btn btn-gscope" type="button"
+                  aria-label="G-scope"
+                  title="G-scope: put the plate under the lens, or open an STL, a 3MF or a sliced .gcode.3mf. Colour per part or per slicer feature, a capture box, a layer-range slider, Normal or Slice view - then export what you isolated, or drag it onto the second plate.">G-scope</button>
+          <input type="file" id="ms-input" accept=".stl,.3mf" class="hidden-quiet" />
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-scale">
+            <summary class="vp-bar-btn" title="Read the piece's shape and size, then lengthen, shorten or scale it">Scale</summary>
+            <div class="vp-menu-body vp-top-body" id="scale-card">
+              <!-- mm | in: what this card shows and what is typed into it.
+                   Display only - the engines stay in mm (app-scale.js, 1c). -->
+              <div class="scale-unit" role="group" aria-label="Units shown on the Scale card">
+              <button id="btn-scale-unit-mm" class="scale-unit-btn" type="button" aria-pressed="true" title="Show and type millimetres">mm</button>
+              <button id="btn-scale-unit-in" class="scale-unit-btn" type="button" aria-pressed="false" title="Show and type inches - converted to millimetres at the card's edge">in</button>
+              </div>
+              <p id="scale-readout" class="hint">Select a piece to resize.</p>
+              <div id="scale-rows">
+              <div class="edit-row scale-row" id="scale-length-row" hidden>
+              <label for="scale-length">Length</label>
+              <input id="scale-length" title="Lengthen or shorten the piece along its own length - longer extends, shorter shortens - by inserting or removing material inside one straight run, so walls, floor, holes and lips keep their size. Shortening says the most it can take." type="number" min="0.1" max="2000" step="0.1" aria-label="Length, mm" />
+              <span class="hint">mm</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-width-row" hidden>
+              <label for="scale-width">Width</label>
+              <input id="scale-width" title="Widen or narrow the piece across its own width the same way: material goes in or comes out inside one straight run, and every wall, floor, hole and lip keeps its size." type="number" min="0.1" max="2000" step="0.1" aria-label="Width, mm" />
+              <span class="hint">mm</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-height-row" hidden>
+              <label for="scale-height">Height</label>
+              <input id="scale-height" title="Make the piece taller or shorter along its own Z the same way: material goes in or comes out inside one straight run, so the floor and every wall keep their thickness." type="number" min="0.1" max="2000" step="0.1" aria-label="Height, mm" />
+              <span class="hint">mm</span>
+              </div>
+              <!-- A ring's three rows each move one face (nso_ring.js): Outer Ø the
+                   outside, Bore Ø and Wall the bore. -->
+              <div class="edit-row scale-row" id="scale-ring-outer-row" hidden>
+              <label for="scale-ring-outer">Outer &Oslash;</label>
+              <input id="scale-ring-outer" title="Move the outer wall to this diameter. The bore stays where it is, so the wall changes. Faces move; nothing is scaled; the length is held. Refused under the nozzle-safety wall floor, or where it would reach the bore. Moving the bore with the outside to keep the wall, as this row used to, is SCALE's Offset row - on a ring that moves the ends too, so it is not offered here: set Outer &Oslash;, then Bore &Oslash;." type="number" min="0.1" max="2000" step="0.1" aria-label="Outer &Oslash;, mm" />
+              <span class="hint">bore kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-ring-bore-row" hidden>
+              <label for="scale-ring-bore">Bore &Oslash;</label>
+              <input id="scale-ring-bore" title="Move the bore wall to this diameter. The outer stays where it is, so the wall changes. Faces move; nothing is scaled; the length is held. Refused under the nozzle-safety wall floor, or where it would reach the outer." type="number" min="0.1" max="2000" step="0.1" aria-label="Bore &Oslash;, mm" />
+              <span class="hint">outer kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-ring-wall-row" hidden>
+              <label for="scale-ring-wall">Wall</label>
+              <input id="scale-ring-wall" title="Move the bore wall so the wall is this thick. The outer stays where it is. Refused under the nozzle-safety wall floor." type="number" min="0.1" max="2000" step="0.1" aria-label="Wall, mm" />
+              <span class="hint">outer kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-rod-diameter-row" hidden>
+              <label for="scale-rod-diameter">Diameter</label>
+              <input id="scale-rod-diameter" title="Move the rod's wall to this diameter. Faces move; nothing is scaled; the length is held." type="number" min="0.1" max="2000" step="0.1" aria-label="Diameter, mm" />
+              <span class="hint">length kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-offset-row" hidden>
+              <label for="scale-offset">Offset</label>
+              <input id="scale-offset" title="Move the whole outside out (positive) or in (negative) by this many mm. Every inner face follows, so walls and floors keep their thickness. Refused where a bore or pocket would close, or a section would drop under the nozzle-safety floor." type="number" min="-20" max="20" step="0.1" aria-label="Offset, mm - positive grows, negative shrinks" aria-describedby="scale-offset-note" />
+              <span class="hint">mm, wall kept</span>
+              </div>
+              <!-- The Offset row's sentence: too long for the row's unit column, so
+                   it sits under the row and goes with it (styles.css). -->
+              <p class="hint scale-note" id="scale-offset-note">Thin features keep their thickness: a 0.6 mm lid strap stays 0.6 mm.</p>
+              <!-- Shape rows (nso_shapes.js): a capsule, a sphere or ellipsoid, a
+                   torus. Each changes one thing; shown instead of the rows above. -->
+              <div class="edit-row scale-row" id="scale-cap-length-row" hidden>
+              <label for="scale-cap-length">Length</label>
+              <input id="scale-cap-length" title="Lengthen or shorten the straight band between the two hemispheres. The hemispheres move but never change shape. Refused under 2× the radius." type="number" min="0.1" max="2000" step="0.1" aria-label="Capsule length, mm" />
+              <span class="hint">ends kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-cap-diameter-row" hidden>
+              <label for="scale-cap-diameter">Diameter</label>
+              <input id="scale-cap-diameter" title="Scale the capsule's whole cross-section to this diameter. Both ends stay hemispheres and the overall length is held. Refused over the length." type="number" min="0.1" max="2000" step="0.1" aria-label="Capsule diameter, mm" />
+              <span class="hint">length kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-ell-a-row" hidden>
+              <label for="scale-ell-a">A</label>
+              <input id="scale-ell-a" title="Make the piece this long along its own X, an exact scale along X alone. Y and Z are not touched." type="number" min="0.1" max="2000" step="0.1" aria-label="Axis A (X), mm" />
+              <span class="hint">X only</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-ell-b-row" hidden>
+              <label for="scale-ell-b">B</label>
+              <input id="scale-ell-b" title="Make the piece this long along its own Y, an exact scale along Y alone. X and Z are not touched." type="number" min="0.1" max="2000" step="0.1" aria-label="Axis B (Y), mm" />
+              <span class="hint">Y only</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-ell-c-row" hidden>
+              <label for="scale-ell-c">C</label>
+              <input id="scale-ell-c" title="Make the piece this tall along its own Z, an exact scale along Z alone. X and Y are not touched." type="number" min="0.1" max="2000" step="0.1" aria-label="Axis C (Z), mm" />
+              <span class="hint">Z only</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-torus-ring-row" hidden>
+              <label for="scale-torus-ring">Ring &Oslash;</label>
+              <input id="scale-torus-ring" title="Move the tube in or out to this centreline diameter. The tube's section is unchanged. Refused where the tube would reach the axis." type="number" min="0.1" max="2000" step="0.1" aria-label="Ring &Oslash;, mm" />
+              <span class="hint">tube kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-torus-tube-row" hidden>
+              <label for="scale-torus-tube">Tube &Oslash;</label>
+              <input id="scale-torus-tube" title="Scale the tube's section to this diameter about its own centreline. The ring diameter is held, and a hollow tube keeps its wall. Refused where the tube would reach the axis." type="number" min="0.1" max="2000" step="0.1" aria-label="Tube &Oslash;, mm" />
+              <span class="hint">ring kept</span>
+              </div>
+              <div class="edit-row scale-row" id="scale-factor-row">
+              <label for="scale-factor">Whole &times;</label>
+              <input id="scale-factor" title="Plain uniform multiplier: every size, wall and hole by the same factor." type="number" min="0.0001" max="10000" step="0.01" value="1" aria-label="Uniform scale factor" />
+              <span class="hint"></span>
+              </div>
+              <div class="edit-row scale-row" id="scale-longest-row">
+              <label for="scale-target">Longest</label>
+              <input id="scale-target" title="Solve the uniform factor that makes the piece's longest edge exactly this many mm. Hidden when Length, Width, Height or a diameter already shows the same number." type="number" min="0.1" max="1000" step="0.1" aria-label="Longest edge, mm" />
+              <span class="hint">mm</span>
+              </div>
+              </div>
+              <button id="btn-scale-fit" class="btn btn-secondary" type="button"
+              title="Scale uniformly by the largest factor that fits the printer the plate is set to, and say the factor. If it already fits, nothing changes.">Fit to plate</button>
+            </div>
+          </details>
+          <!-- Cut: the card is the switch - open it and the cutter is live,
+               close it and the blade is gone (app-cut.js, cutWireCards). -->
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-cut">
+            <summary class="vp-bar-btn" title="Cut the selected piece: click it to drop a square blade, slide or angle it, then Cut">Cut</summary>
+            <div class="vp-menu-body vp-top-body" id="edit-card">
+              <p id="cutter-status" class="hint">Click a piece to drop a square blade on it.</p>
+              <p id="edit-size" class="hint hidden-quiet">—</p>
+              <select id="edit-axis" class="hidden-quiet"><option value="auto">Longest axis</option><option value="x">X</option><option value="z">Z</option></select>
+              <div id="cutter-tools" class="cutter-tools">
+              <div class="cut-miter">
+              <svg id="cut-miter-dial" class="cut-dial" viewBox="0 0 100 100" width="104" height="104"
+                   role="slider" tabindex="0" aria-label="Mitre, degrees" aria-valuemin="0" aria-valuemax="359.9" aria-valuenow="0">
+                <circle class="cut-dial-rail" cx="50" cy="50" r="40"></circle>
+                <g class="cut-dial-ticks">
+                  <line x1="50" y1="6" x2="50" y2="14"></line><line x1="94" y1="50" x2="86" y2="50"></line>
+                  <line x1="50" y1="94" x2="50" y2="86"></line><line x1="6" y1="50" x2="14" y2="50"></line>
+                  <line x1="81.1" y1="18.9" x2="77.6" y2="22.4"></line><line x1="81.1" y1="81.1" x2="77.6" y2="77.6"></line>
+                  <line x1="18.9" y1="81.1" x2="22.4" y2="77.6"></line><line x1="18.9" y1="18.9" x2="22.4" y2="22.4"></line>
+                </g>
+                <g id="cut-dial-turn" transform="rotate(0 50 50)">
+                  <line class="cut-dial-blade" x1="50" y1="22" x2="50" y2="78"></line>
+                  <circle id="cut-dial-handle" class="cut-dial-handle" cx="50" cy="10" r="7"></circle>
+                </g>
+                <text id="cut-dial-deg" class="cut-dial-deg" x="50" y="54" text-anchor="middle">0°</text>
+              </svg>
+              <div class="cut-miter-side">
+              <span class="hint">Mitre</span>
+              <input type="number" id="cut-miter-deg" class="cut-no-spin" min="0" max="359.9" step="0.1" value="0" aria-label="Mitre, degrees" title="Type an angle, or drag the handle round the wheel. 0 = square.">
+              <button id="btn-cut-square" class="btn btn-secondary" type="button" title="Back to a square cut (0°)">Square</button>
+              </div>
+              <div class="cut-miter-steps" role="group" aria-label="Mitre, step">
+              <button id="btn-cut-miter-minus" class="btn btn-secondary" type="button" aria-label="Mitre 1 degree less" title="Mitre −1° (Shift: 0.1°, Alt: 5°). Hold to repeat.">−</button>
+              <button id="btn-cut-miter-plus" class="btn btn-secondary" type="button" aria-label="Mitre 1 degree more" title="Mitre +1° (Shift: 0.1°, Alt: 5°). Hold to repeat.">+</button>
+              </div>
+              </div>
+              <!-- Bevel: the blade's lean off plumb, about its own horizontal line
+                   (app-cut.js, cutWireBevelDial). Seen end-on, far end to the right. -->
+              <div class="cut-miter cut-bevel">
+              <svg id="cut-bevel-dial" class="cut-dial" viewBox="0 0 100 100" width="104" height="104"
+                   role="slider" tabindex="0" aria-label="Bevel, degrees" aria-valuemin="-90" aria-valuemax="90" aria-valuenow="0">
+                <title>Bevel: the blade's lean off plumb. Positive tips the top of the blade toward the piece's far end. Drag round the rail (it rests on the painted ticks), click a dart or press an arrow key for 1° (Shift: 0.1°).</title>
+                <circle class="cut-dial-rail" cx="50" cy="50" r="40"></circle>
+                <g class="cut-dial-ticks">
+                  <line x1="50" y1="6" x2="50" y2="14"></line><line x1="94" y1="50" x2="86" y2="50"></line>
+                  <line x1="6" y1="50" x2="14" y2="50"></line>
+                  <line x1="81.1" y1="18.9" x2="77.6" y2="22.4"></line><line x1="18.9" y1="18.9" x2="22.4" y2="22.4"></line>
+                </g>
+                <path class="cut-bevel-piece" d="M24 50 H74 M70 46 L75 50 L70 54"></path>
+                <g id="cut-bevel-turn" transform="rotate(0 50 50)">
+                  <line class="cut-dial-blade" x1="50" y1="22" x2="50" y2="78"></line>
+                  <circle class="cut-bevel-top" cx="50" cy="22" r="3"></circle>
+                </g>
+                <g id="cut-bevel-darts" transform="rotate(0 50 50)">
+                  <path class="cut-bevel-dart" data-dir="-1" d="M36 10 L45 4.5 L45 15.5 Z"></path>
+                  <path class="cut-bevel-dart" data-dir="1" d="M64 10 L55 4.5 L55 15.5 Z"></path>
+                </g>
+                <text id="cut-bevel-dial-deg" class="cut-dial-deg" x="50" y="40" text-anchor="middle">0°</text>
+              </svg>
+              <div class="cut-miter-side">
+              <span class="hint">Bevel</span>
+              <input type="number" id="cut-bevel-deg" class="cut-no-spin" min="-90" max="90" step="0.1" value="0" aria-label="Bevel, degrees" title="The blade's lean off plumb, -90 to 90. 0 = no lean; positive tips the top of the blade toward the piece's far end.">
+              </div>
+              <div class="cut-miter-steps" role="group" aria-label="Bevel, step">
+              <button id="btn-cut-bevel-minus" class="btn btn-secondary" type="button" aria-label="Bevel 1 degree less" title="Bevel −1°: the top of the blade toward the near end (Shift: 0.1°, Alt: 5°). Hold to repeat.">−</button>
+              <button id="btn-cut-bevel-plus" class="btn btn-secondary" type="button" aria-label="Bevel 1 degree more" title="Bevel +1°: the top of the blade toward the far end (Shift: 0.1°, Alt: 5°). Hold to repeat.">+</button>
+              </div>
+              <button id="btn-cut-plumb" class="btn btn-secondary cut-plumb" type="button" title="Set the bevel that stands the blade vertical on the plate, whatever pose the piece came with. The readout shows the bevel it applied.">Plumb</button>
+              </div>
+              <input type="range" id="cut-slider" min="1" max="99" step="0.1" value="50" aria-label="Blade position along the piece, mm" />
+              <div class="edit-row cut-mm-row">
+              <button id="btn-cut-nudge-m" class="btn btn-secondary" type="button" aria-label="Blade 0.1 mm toward the low end" title="0.1 mm toward the low end (Shift: 1 mm)">←</button>
+              <input type="number" id="cut-mm" class="cut-no-spin" value="50" min="0.5" max="400" step="0.1" aria-label="Blade position, mm from the low end" />
+              <button id="btn-cut-nudge-p" class="btn btn-secondary" type="button" aria-label="Blade 0.1 mm toward the high end" title="0.1 mm toward the high end (Shift: 1 mm)">→</button>
+              </div>
+              <p id="cut-readout" class="cut-readout">—</p>
+              <button id="btn-cut" class="btn btn-cut" type="button"
+                      title="Split the piece at the blade: two pieces that meet exactly at the plane and add back to the original - no kerf. One Undo puts it back.">Cut</button>
+              <button id="btn-cut-right-side-out" class="btn btn-secondary" type="button" hidden
+                      title="Offered only after Cut refused a piece whose faces all point inward. Reverses every triangle of the piece so its faces point out, then makes the same Cut. One Undo puts the original piece back.">Turn it right-side-out, then cut</button>
+              </div>
+            </div>
+          </details>
+          <!-- Crop: copy what a shape holds out of the selected piece as a new, solid
+               piece (nso_crop.js, app-crop-card.js, docs/CROP.md). Pick a shape, drag
+               it to size, press CROP. Nothing else lives here: the shape is sized by
+               its handles in the viewport, not by fields. Opening the card arms the
+               same piece selection Cut uses, with no blade. -->
+          <details class="vp-menu vp-top-menu vp-shell-menu" id="menu-crop">
+            <summary class="vp-bar-btn" title="Crop: copy what a shape holds out of the selected piece as a new solid piece. The original is not touched">Crop</summary>
+            <div class="vp-menu-body vp-top-body" id="crop-card">
+              <div class="edit-row crop-shape-row" id="crop-shape-row" role="group" aria-label="Shape">
+              <button id="btn-crop-shape-box" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Box: drag its faces to size it, its body to move it (Shift: up and down)">Box</button>
+              <button id="btn-crop-shape-cylinder" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Cylinder, on any axis: slide its ends, drag its side for the diameter. Pull an end round past 45 degrees and the axis follows">Cylinder</button>
+              <button id="btn-crop-shape-sphere" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Sphere: drag its handle for the diameter, its body to move it">Sphere</button>
+              <button id="btn-crop-shape-piece" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Piece: click another piece on the plate - the copy is where the two overlap">Piece</button>
+              <button id="btn-crop-shape-outline" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Outline: click a piece for its footprint seen from above (Shift-click a triangle for its rim), then drag the outer and inner offsets and the two heights">Outline</button>
+              </div>
+              <p id="crop-readout" class="carve-readout">—</p>
+              <button id="btn-crop" class="btn btn-secondary" type="button" disabled
+                      title="Copy what the shape holds as a new solid piece, on the plate where it was cut from. The original is untouched. One Undo removes the copy. The shape stays for another crop">CROP</button>
+              <button id="btn-crop-cancel" class="btn btn-ghost" type="button" disabled
+                      title="Put the shape away (Escape does the same)">Cancel</button>
+            </div>
+          </details>
+          <!-- CONNECT: the builder. Two anchors say where, the card says what runs
+               between them (String, Ribbon, Tube, Tapered), along what path (Sag: 0
+               straight, + an arc, - a drape), with what tips (Ends) and whether it is
+               welded into the pieces or kept as one of its own (app-connect.js,
+               nso_connect.js). Bridge, in Add, stays the quick gap-fill.
+               Opening the column opens the card and arms the anchor picks; no button in between.
+               docs/CONNECT.md. -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-connect">
+            <summary class="vp-bar-btn" title="Build a connector between two anchors: a string, a ribbon, a tube or a taper - welded into the pieces, or kept as a piece of its own">Connect</summary>
+            <div class="vp-menu-body vp-top-body">
+              <div class="vp-bend-panel vp-bridge-panel" id="connect-panel" hidden
+                   title="Click anchor A on a piece, orbit as you like, click anchor B. A face is its centre, an edge its middle (a ribbon takes the whole edge), a point itself. Then pick what runs between them, its Sag and its Ends, and Set.">
+                <p id="connect-readout" class="bend-readout">—</p>
+                <p id="connect-a-text" class="bend-readout">Anchor A: — click a piece</p>
+                <p id="connect-b-text" class="bend-readout">Anchor B: — click a piece</p>
+                <label class="vp-bend-field" title="What runs between the anchors.">Shape
+                  <select id="sel-connect-shape" class="vp-select" aria-label="Connector shape">
+                    <option value="string" selected>String</option>
+                    <option value="ribbon">Ribbon</option>
+                    <option value="tube">Tube</option>
+                    <option value="tapered">Tapered</option>
+                  </select></label>
+                <div class="te-rows" id="connect-string-rows">
+                  <label class="vp-bend-field" id="connect-string-row" title="The string's diameter.">Ø
+                    <input type="number" id="inp-connect-dia" min="0.4" step="0.1" value="2" aria-label="String diameter, mm"><span>mm</span></label>
+                </div>
+                <div class="te-rows" id="connect-ribbon-rows" hidden>
+                  <label class="vp-bend-field" title="The ribbon's width. Its flat face is perpendicular to the average of the two anchor normals. At most twice the shorter anchor edge.">Width
+                    <input type="number" id="inp-connect-width" min="0.4" step="0.1" value="6" aria-label="Ribbon width, mm"><span>mm</span></label>
+                  <label class="vp-bend-field" title="The ribbon's thickness.">Thick
+                    <input type="number" id="inp-connect-thick" min="0.4" step="0.1" value="1.2" aria-label="Ribbon thickness, mm"><span>mm</span></label>
+                </div>
+                <div class="te-rows" id="connect-tube-rows" hidden>
+                  <label class="vp-bend-field" title="The tube's outer diameter. It is closed at both ends: a hollow rod, its bore sealed inside.">Ø
+                    <input type="number" id="inp-connect-tube-dia" min="0.8" step="0.1" value="4" aria-label="Tube diameter, mm"><span>mm</span></label>
+                  <label class="vp-bend-field" title="The tube's wall. Under half the diameter, or there is no bore.">Wall
+                    <input type="number" id="inp-connect-wall" min="0.4" step="0.1" value="0.8" aria-label="Tube wall, mm"><span>mm</span></label>
+                </div>
+                <div class="te-rows" id="connect-tapered-rows" hidden>
+                  <label class="vp-bend-field" title="The diameter at anchor A.">Ø at A
+                    <input type="number" id="inp-connect-dia-a" min="0.4" step="0.1" value="4" aria-label="Diameter at A, mm"><span>mm</span></label>
+                  <label class="vp-bend-field" title="The diameter at anchor B.">Ø at B
+                    <input type="number" id="inp-connect-dia-b" min="0.4" step="0.1" value="1.5" aria-label="Diameter at B, mm"><span>mm</span></label>
+                </div>
+                <label class="vp-clone" title="Draw the path freehand instead of picking two anchors. Press anywhere - on the plate or on a piece - and drag: the stroke follows the cursor across the plate (and up onto the pieces it crosses), is smoothed, and on release the shape is swept along it and built (Result and Ends as below). An end on the plate is a flat foot on it; an end on a piece follows Ends. A stroke with both ends on the plate is always a piece of its own. Esc mid-drag cancels. The card stays armed for the next stroke. Left-drag draws while this is on; right or middle drag still orbits and pans."><input type="checkbox" id="chk-connect-draw"> Draw</label>
+                <label class="vp-bend-field" title="How far the connector bows at mid-span, mm, signed. 0 is straight. Positive bows it UP (an arc: a handle, a hoop), negative hangs it DOWN (a drape: a cable). A circular arc through both anchors, in the vertical plane through them; anchors one straight above the other bow away from the piece's centre. The last 3 mm at each end stays straight. Refused when the curve would pass through a piece. With Draw on, Sag is a lift: the middle of the stroke is raised by this much (positive only; the ends stay put and the stroke lands flat), 0 is flat on the plate.">Sag
+                  <input type="number" id="inp-connect-sag" step="0.5" value="0" aria-label="Sag, mm, signed"><span>mm</span></label>
+                <label class="vp-bend-field" title="What the connector's own tips look like, both ends. Weld: sunk and unioned (kept separate it is the flush cut). Flat: cut flush at the surface, not sunk. Foot pad: a disc 2.5 x the local width across, 0.6 mm thick, flush on the surface. Ball: a sphere 1.5 x the local width across, centred on the anchor.">Ends
+                  <select id="sel-connect-ends" class="vp-select" aria-label="Connector ends">
+                    <option value="weld" selected>Weld</option>
+                    <option value="flat">Flat</option>
+                    <option value="pad">Foot pad</option>
+                    <option value="ball">Ball</option>
+                  </select></label>
+                <label class="vp-clone" title="The whole connector - its ends too - unioned into the pieces it joins. A Weld end is sunk under the surface, past the gap its rim leaves (Bridge's string); a Foot pad or Ball is welded where it sits. Two pieces become one."><input type="radio" name="connect-result" value="weld" checked> Weld into A and B</label>
+                <label class="vp-clone" title="The connector becomes a closed piece of its own on the plate (a Weld end is cut flush with the surface). The pieces are not touched."><input type="radio" name="connect-result" value="separate"> Keep separate</label>
+                <div class="vp-row vp-row-pair">
+                  <button id="btn-connect-go" class="btn btn-secondary" type="button" disabled
+                          title="Build the connector the ghost shows. One Undo puts everything back.">Set</button>
+                  <button id="btn-connect-cancel" class="btn btn-secondary" type="button" title="Drop the anchors; with none picked, close the card.">Cancel</button>
+                </div>
+                <div class="vp-row vp-row-full">
+                  <button id="btn-stock-attach" class="btn btn-secondary btn-attach" type="button" aria-pressed="false"
+                          title="Generate a blank of the shape last clicked on the Stock shelf (Gen+ > Stock), at its default size, and attach it where you click on a piece: straight-line auto-aim works out which way it leaves that face, seats it deep enough for the whole rim to bite, and unions the two into one solid. Nothing is left on the plate to tidy up. Escape or a second click stops. See docs/ASSEMBLE.md.">Attach</button>
+                </div>
+              </div>
+              <!-- REATTACH (app-detach.js; docs/DETACH.md): put a flange taken off by Detach
+                   (in the Subtract card) back on somewhere else. It moved here from the
+                   Crop card, id for id; its readout is Detach's, in the Subtract card, and
+                   the status line. The last row of the Connect card, under Attach's
+                   row. -->
+              <div class="edit-row">
+              <button id="btn-reattach" class="btn btn-secondary btn-attach" type="button" aria-pressed="false" disabled
+                      title="Reattach: put the detached flange back somewhere else - click the point on a piece where its root should go. It keeps lying the way it lay, reaches out of the clicked face, is seated deep enough for its whole root to bite (Attach's seat), and is unioned into that piece. One Undo puts both back.">Reattach</button>
+              </div>
+            </div>
+          </details>
+          <!-- JOIN: one card (docs/JOIN-TRIPLE.md). The Vertical / Horizontal
+               toggle on top, the A, B, C slots with a gap row between each pair
+               they join, one JOIN and Cancel, and a readout line that says what
+               JOIN will do. Two pieces with the A-B gap off is Complete Join;
+               anything else is the A-B-C sequence (app-join-triple.js). Opening
+               the column starts the Join session (app-join.js, joinWireCard). -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-joins">
+            <summary class="vp-bar-btn" title="Join two pieces, or three in one go: pick A, B and C, set a gap at each junction, JOIN">Join</summary>
+            <div class="vp-menu-body vp-top-body">
+              <div class="joins-card" id="joins-card">
+                <label class="join-orient" for="join-horizontal"
+                       title="Vertical stack: each piece is centred over the one before it and seated down onto it. Horizontal sequence: each piece keeps its place along the run and is centred on the cross axis, then seated sideways against the one before it.">
+                  <span class="join-orient-word join-orient-v">Vertical</span>
+                  <input type="checkbox" id="join-horizontal" class="join-switch" role="switch" aria-label="Horizontal sequence (off: vertical stack)">
+                  <span class="join-orient-word join-orient-h">Horizontal</span>
+                </label>
+                <button type="button" class="join-slot" id="join-slot-a" data-slot="a"><span class="join-badge join-badge-a">A</span><span class="join-slot-name" id="join-name-a">Pick piece A</span></button>
+                <div class="join-gap-row" id="join-gap-ab-row">
+                  <label class="join-gap-check" title="Off: no gap - A-B is seated touching (0). On: A-B is seated at the slider's gap."><input type="checkbox" id="join-gap-ab-on"> gap</label>
+                  <input type="range" id="join-gap-ab" min="-0.25" max="0.05" step="0.01" value="-0.18" disabled title="Gap at the A-B junction, in mm. Same range and meaning as the Seat (support) slider: negative = air gap, 0 = touching, positive = B overlaps into A." aria-label="A to B junction gap in mm" />
+                  <output id="join-gap-ab-value" for="join-gap-ab" title="The gap the A-B junction will be seated at">-0.18 mm</output>
+                </div>
+                <button type="button" class="join-slot" id="join-slot-b" data-slot="b"><span class="join-badge join-badge-b">B</span><span class="join-slot-name" id="join-name-b">Pick piece B</span></button>
+                <div class="join-gap-row" id="join-gap-bc-row">
+                  <label class="join-gap-check" title="Off: no gap - B-C is seated touching (0). On: B-C is seated at the slider's gap. Live once C is picked."><input type="checkbox" id="join-gap-bc-on" disabled> gap</label>
+                  <input type="range" id="join-gap-bc" min="-0.25" max="0.05" step="0.01" value="-0.18" disabled title="Gap at the B-C junction, in mm. Same range and meaning as the Seat (support) slider: negative = air gap, 0 = touching, positive = C overlaps into B." aria-label="B to C junction gap in mm" />
+                  <output id="join-gap-bc-value" for="join-gap-bc" title="The gap the B-C junction will be seated at">-0.18 mm</output>
+                </div>
+                <button type="button" class="join-slot" id="join-slot-c" data-slot="c"><span class="join-badge join-badge-c">C</span><span class="join-slot-name" id="join-name-c">Pick piece C (optional)</span></button>
+                <div class="join-actions">
+                  <button id="btn-join" class="btn btn-primary" type="button" disabled title="Two pieces, A-B gap off: Complete Join - B welded into A as one piece. Otherwise each junction is Center lock then Seat (support) at its own gap. One Undo takes it all back.">JOIN</button>
+                  <button id="btn-join-clear" class="btn btn-ghost" type="button" title="Clear the slots">Cancel</button>
+                </div>
+                <p class="join-readout" id="join-readout" aria-live="polite">Pick A and B</p>
+              </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-seat">
+            <summary class="vp-bar-btn" title="Seat B on A: support gap, Seat here, washer, flush, port, surface grid">Seat</summary>
+            <div class="vp-menu-body vp-top-body">
+              <div class="seat-support">
+                <button id="btn-seat-support" class="btn btn-secondary" type="button" title="Seat B's mating face at the slider's gap off A's skin (or off the skin tips of a skinned face). B is seated as it lies: a tilt or lean already on it stays, and its current underside is what lands on A's face - Tip or Tilt it first to seat a different face. Negative = air gap, easy release is -0.15 to -0.20. Positive = B overlaps into A. 0 = touching.">Seat (support)</button>
+                <div class="seat-support-row">
+                  <input type="range" id="seat-gap" min="-0.25" max="0.05" step="0.01" value="-0.18" title="Seat gap in mm, 0.01 steps. -0.25 (air) to +0.05 (overlap); default -0.18, mid easy-release. Arrow keys step 0.01." aria-label="Seat gap in mm" />
+                  <output id="seat-gap-value" for="seat-gap" title="Exact gap the next Seat (support) will use">-0.18 mm</output>
+                </div>
+                <button id="btn-seat-here" class="btn btn-secondary" type="button" aria-pressed="false" title="Seat here: click a point on A - curved, irregular or flat - and B is turned to face it and set at the slider's gap. The gap is the true minimum distance between the two surfaces.">Seat here</button>
+                <label class="vp-check" for="chk-oversize-washer"
+                       title="Oversized washer: for a deliberately close-contact washer or shim WIDER than the piece it sits on. Seat (support) then places B at the typed gap below through the measured-clearance solve instead of the corner-ray fit - which refuses an overhanging piece with 'corner N missed hull along punch axis' - and reports the true minimum distance, the overhang and that verdict on the status line instead of refusing. Off: Seat (support) is exactly the seat it has always been.">
+                  <input type="checkbox" id="chk-oversize-washer"> Oversized washer
+                </label>
+                <div class="seat-support-row oversize-row">
+                  <label for="oversize-gap" title="The gap Seat (support) places at while Oversized washer is on, in mm, coupon sign convention: negative = air gap, 0 = touching, positive = the washer overlaps into the target. Typed, not the slider, so a deliberate squeeze past the slider's +0.05 can be asked for at all.">Gap</label>
+                  <input type="number" id="oversize-gap" min="-5" max="5" step="0.01" value="0"
+                         aria-label="Oversized washer gap in mm" />
+                  <span class="oversize-unit">mm</span>
+                </div>
+              </div>
+              <button id="btn-seat-flush" class="btn btn-secondary" type="button" title="Flush plug seat: bury B in A with its outer face 0.01 mm proud of A's skin, then Subtract. Ignores the gap slider.">Seat flush</button>
+              <button id="btn-flip-port" class="btn btn-secondary" type="button">Flip port</button>
+              <button id="btn-seat-grid" class="btn btn-secondary" type="button" title="Faint grid on the top surface of the target piece (A), to line up what goes above it">Surface grid: auto</button>
+            </div>
+          </details>
+          <!-- SUPPORTS: one card on the main page (app-supports-card.js,
+               docs/SUPPORTS-CARD.md), a verb with a state. Opening it detects
+               at once on the selected piece: every hanging area is outlined on
+               it and the card says how many, at what angle, on which piece -
+               the angle is editable right here. Click an outline to leave that
+               area out (or put it back); Shift-click the piece to add a spot.
+               GENERATE builds; the card is locked while it does and one bar
+               under the readout fills with the build ("Planning 142 / 377 -
+               38 %", then "Building ...", then "Welding - 14 s"; Escape
+               cancels), and a build ends as BUILT or as "Could not build: ...".
+               Once built it reads
+               the result (held / unsupported / unreachable, a row for each
+               area that needs a look) and offers REGENERATE, REMOVE ALL and
+               REMOVE. G-scope's support row stays for layer-view work; both
+               call the same planner. -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-supports">
+            <summary class="vp-bar-btn" title="Outline where a piece hangs in air, then generate the supports that hold it">Supports</summary>
+            <div class="vp-menu-body vp-top-body sup-card" id="supports-card" data-state="pick">
+              <p id="sup-count" class="bend-readout sup-count">Click a piece to see where it needs holding.</p>
+              <div id="sup-progress" class="sup-progress" role="progressbar" aria-label="Building supports" aria-valuemin="0" aria-valuemax="100" hidden><div class="sup-progress-fill"></div></div>
+              <div class="sup-modes" role="group" aria-label="Where the supports start">
+                <button id="sup-mode-auto" class="sup-seg is-on" type="button" aria-pressed="true"
+                        title="The planner finds every hanging area and holds all of it. Nothing to place.">Auto</button>
+                <button id="sup-mode-assisted" class="sup-seg" type="button" aria-pressed="false"
+                        title="The detected spots show as points on the piece: click one to turn it off, or on. Circles on the plate say where the supports may land.">Assisted</button>
+                <button id="sup-mode-custom" class="sup-seg" type="button" aria-pressed="false"
+                        title="No detected spots: click the underside of the piece to place a tip, click a tip to take it away. Circles on the plate say where the supports may land.">Custom</button>
+              </div>
+              <div id="sup-tools" class="sup-tools" role="group" aria-label="What the pointer does" hidden>
+                <button id="sup-tool-tips" class="sup-seg is-on" type="button" aria-pressed="true"
+                        title="Work on the piece: the spots or tips. The view orbits as usual.">Tips</button>
+                <button id="sup-tool-circles" class="sup-seg" type="button" aria-pressed="false"
+                        title="Start drawing landing circles on the plate; press again (or Esc) to stop and orbit. Orbit to a good view first.">Circles</button>
+                <button id="sup-tool-erase" class="sup-seg" type="button" aria-pressed="false" disabled
+                        title="After a Generate: hover a built member to light it and what it holds up; click to remove it and plan again. Press again (or Esc) to stop.">Erase</button>
+              </div>
+              <label class="vp-bend-field" for="sup-angle">Angle
+                <input type="number" id="sup-angle" value="35" min="1" max="89" step="1" aria-label="Overhang angle, degrees"
+                       title="Faces within this many degrees of horizontal get support. Bambu Studio's threshold means the same thing, and its default is 30. A smaller angle finds only the flatter undersides; a larger one reaches steeper faces too. The outlines follow as you type."><span id="sup-angle-note" class="sup-angle-note">35&deg; &middot; Bambu 30&deg;</span></label>
+              <div class="sup-go-row">
+                <button id="btn-sup-all" class="btn btn-primary sup-go" type="button" disabled
+                        title="Build supports for every outlined area. When the piece already has supports they are all replaced. One Undo puts it back. A build that cannot finish says why and adds nothing.">Generate</button>
+                <button id="btn-sup-none" class="btn btn-secondary" type="button" hidden disabled
+                        title="Take every support off this piece. The areas stay outlined. In Assisted and Custom this also forgets the tips, spots turned off, circles and erasures. One Undo puts them back.">Remove all</button>
+              </div>
+              <ul id="sup-rows" class="sup-rows" hidden aria-label="Areas that need a look"></ul>
+              <div class="vp-row vp-row-full">
+                <button id="btn-sup-remove" class="btn btn-secondary" type="button" hidden disabled
+                        title="Take off the one support you clicked. One Undo puts it back.">Remove</button>
+              </div>
+              <label class="vp-bend-field" for="sup-style">Style
+                <select id="sup-style" class="vp-select" title="Straight strut: one post per spot. Tree: posts merge on the way down. Gecko-hand: the tree with a hand at every spot.">
+                  <option value="strut">Straight strut</option>
+                  <option value="tree" selected>Tree</option>
+                  <option value="gecko-hand">Gecko-hand</option>
+                </select></label>
+              <label class="vp-bend-field" for="sup-size">Size
+                <input type="number" id="sup-size" value="1.2" min="0.4" max="6" step="0.1" aria-label="Strut side, mm"
+                       title="The cross-section side of the struts, trunks and branches. Never below the nozzle's wall floor - the planner raises it if asked for less."><span>mm</span></label>
+              <label class="vp-check" for="sup-rest" title="Off: every support stands on the plate, and a spot with no clear way down is left unreachable. On: such a spot may be held from a part below it.">
+                <input type="checkbox" id="sup-rest"> May rest on the part</label>
+              <p id="sup-hint" class="hint sup-hint">Click an outlined area to leave it out, or put it back. Shift-click the piece to add a spot. Click a support to pick it.</p>
+            </div>
+          </details>
+          <!-- ADD: what builds material onto a piece - Fill / Densify, Foam, Thicken,
+               Extend, Bridge - out of the old Shape card, unchanged; and Close. -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-add" data-sec="add">
+            <summary class="vp-bar-btn" title="Fill / Densify, Foam, Thicken out and in, Extend, Bridge, Close, Patch">Add</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-pair">
+              <button id="btn-fill" class="btn btn-secondary" type="button"
+                      title="Fill a hollow piece's interior cavity solid - the inverse of Hollow. Drops the shells that bound enclosed cavities and touches nothing else, so the outer surface comes back exactly as it was. A captive separate solid is not a cavity and is never removed.">Fill / Densify</button>
+              <button id="btn-foam" class="btn btn-secondary" type="button" aria-pressed="false"
+                      title="Spray foam into a sealed hollow and watch it fill from the bottom up. The piece turns to a ghost, the hollow shows dark and the foam orange. Hold the mouse on the piece to spray, let go to pause; the Level slider sets it directly. Set turns the foam into solid mesh, bonded into the piece; Cancel leaves everything as it was. Only the hollow's own walls change. See docs/FOAM.md.">Foam</button>
+            </div>
+            <div id="foam-panel" class="foam-panel" hidden>
+              <p class="hint">Hold the mouse on the piece to spray. Let go to pause.</p>
+              <div id="foam-hollows" class="foam-hollows"></div>
+              <div class="vp-row foam-level-row">
+                <label for="inp-foam-level">Level</label>
+                <input type="range" id="inp-foam-level" min="0" max="1" step="0.01" value="0" aria-label="Foam level, mm above the hollow's floor">
+                <span id="foam-level-read" class="foam-level-read">—</span>
+              </div>
+              <p id="foam-readout" class="cut-readout foam-readout">—</p>
+              <div class="vp-row vp-row-triple">
+                <button id="btn-foam-all" class="btn btn-secondary" type="button" title="Raise the foam to the top of the hollow.">Fill it all</button>
+                <button id="btn-foam-set" class="btn btn-secondary" type="button" title="Turn the foam into solid mesh, bonded into the piece. One Undo puts it back.">Set</button>
+                <button id="btn-foam-cancel" class="btn btn-secondary" type="button" title="Put Foam away and leave the piece exactly as it was.">Cancel</button>
+              </div>
+            </div>
+            <div class="vp-row vp-row-thicken">
+              <button id="btn-thicken-out" class="btn btn-secondary" type="button">Thicken out</button>
+              <div class="thick-spin">
+                <input type="number" id="inp-thicken-mm" value="1.5" min="0.4" max="8" step="0.1" aria-label="Thicken mm">
+                <div class="thick-spin-arrows">
+                  <button type="button" class="thick-arrow" data-thick-step="-1" aria-label="Less mm" title="Less">&#9662;</button>
+                  <button type="button" class="thick-arrow" data-thick-step="1" aria-label="More mm" title="More">&#9652;</button>
+                </div>
+              </div>
+              <button id="btn-thicken-in" class="btn btn-secondary" type="button">Thicken in</button>
+            </div>
+            <div class="vp-row vp-row-extend">
+              <button id="btn-extend" class="btn btn-secondary" type="button"
+                      title="Lengthen the piece along its one dominant straight axis, holding the cross-section perpendicular to that axis exactly fixed. Detects the axis itself; refuses a tapered, curved or ambiguous piece by name. Leave the box blank and press once to read the current length.">Extend</button>
+              <input type="number" id="inp-extend-mm" min="0.1" max="2000" step="0.1"
+                     placeholder="mm" aria-label="Extend to length, mm">
+            </div>
+            <!-- BRIDGE: one button beside Extend and Mirror, and the card it
+                 opens (app-bridge.js, nso_bridge.js). docs/BRIDGE.md. -->
+            <div class="vp-row vp-row-full vp-row-bridge">
+              <button id="btn-bridge" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="bridge-panel"
+                      title="Stretch a web from one place on a piece to another - on the same piece or another one - and weld both ends into one closed solid. Face to face makes a band, point to point a round string, edge to edge a flat sheet. Every web is straight.">Bridge</button>
+            </div>
+            <div class="vp-bend-panel vp-bridge-panel" id="bridge-panel" hidden>
+              <p id="bridge-readout" class="bend-readout">—</p>
+              <label class="vp-bend-field" id="bridge-dia-row" hidden title="The string's diameter. Each end is sunk 0.5 mm under the surface, past the gap its rim leaves, and unioned.">Ø
+                <input type="number" id="inp-bridge-dia" min="0.4" step="0.1" value="2" aria-label="String diameter, mm"><span>mm</span></label>
+              <label class="vp-bend-field" id="bridge-thick-row" hidden title="The sheet's thickness. Blank: the thinner piece's wall, at least two nozzle widths. Flush with the faces either side when they lie in the sheet's plane.">Thick
+                <input type="number" id="inp-bridge-thick" min="0.8" step="0.1" placeholder="auto" aria-label="Sheet thickness, mm"><span>mm</span></label>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-bridge-go" class="btn btn-secondary" type="button" disabled
+                        title="Build the web the ghost shows and weld both ends. The pieces become one; one Undo puts every input back.">Set</button>
+                <button id="btn-bridge-cancel" class="btn btn-secondary" type="button" title="Drop the pending web; with none pending, close the card.">Cancel</button>
+              </div>
+            </div>
+            <!-- CLOSE: a lid across an open end, and the card it opens
+                 (app-close.js, nso_close.js). docs/CLOSE.md. -->
+            <div class="vp-row vp-row-full vp-row-close">
+              <button id="btn-close" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="close-panel"
+                      title="Put a lid across an open end - a tube end, an open box, any rim. Hover outlines the rim; click picks it. The lid is as thick as the wall there, flush with the rim (Inset sinks it), unioned into the piece as one closed solid. The outside is not touched.">Close</button>
+            </div>
+            <div class="vp-bend-panel vp-close-panel" id="close-panel" hidden>
+              <p id="close-readout" class="bend-readout">—</p>
+              <label class="vp-bend-field" for="inp-close-thick" title="The lid's thickness. Filled with the wall at the rim you click; at least two nozzle widths.">Thick
+                <input type="number" id="inp-close-thick" min="0.8" step="0.1" aria-label="Lid thickness, mm"><span>mm</span></label>
+              <label class="vp-bend-field" for="inp-close-inset" title="How far below the rim the lid's top sits. 0: flush with the rim.">Inset
+                <input type="number" id="inp-close-inset" min="0" step="0.1" value="0" aria-label="Lid inset below the rim, mm"><span>mm</span></label>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-close-go" class="btn btn-secondary" type="button" disabled
+                        title="Build the lid the ghost shows into the piece. One Undo puts the piece back.">Set</button>
+                <button id="btn-close-cancel" class="btn btn-secondary" type="button" title="Put Close away and leave the piece exactly as it was.">Cancel</button>
+              </div>
+            </div>
+            <!-- PATCH (app-patch.js, nso_patch.js, docs/PATCH.md): arm it, hover a hole to
+                 outline it, click to fill it with a surface that continues the curvature
+                 round it. One Undo per click. The Findings card's PATCH is the same fill. -->
+            <div class="vp-row vp-row-full vp-row-patch">
+              <button id="btn-patch" class="btn btn-secondary btn-patch" type="button" aria-pressed="false"
+                      title="Fill an open hole with a surface that continues the curvature round it: a smooth fit through the rim's neighbours, welded at the rim - no lip, no flat facet. A hole whose rim is flat gets the flat cap. Arm it, hover a hole to outline it, click to fill it. One Undo per click. Click Patch again, or press Escape, to stop.">Patch</button>
+            </div>
+            <p id="patch-readout" class="bend-readout patch-readout" hidden></p>
+            </div>
+          </details>
+          <!-- SUBTRACT: what takes material away - Subtract, Extract bit, Carve (from
+               Sculpt), Punch, Hollow (from Shape), and Lift, on the plate (app-lift-plate.js). -->
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-bit">
+            <summary class="vp-bar-btn" title="Subtract B from A, Extract bit, Carve, Punch, Hollow, Lift, Split to parts">Subtract</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-full">
+              <button id="btn-subtract" class="btn btn-secondary" type="button">Subtract B from A</button>
+            </div>
+            <div class="vp-row vp-row-full">
+              <button id="btn-extract-bit" class="btn btn-secondary" type="button">Extract bit</button>
+            </div>
+            <div class="vp-row vp-row-carve">
+              <button id="btn-carve" class="btn btn-secondary btn-carve" type="button" aria-pressed="false"
+                      title="Local carving tool. Arm it, then click a face, an edge or a corner of a piece: the blade is aimed along the outward bisector of whatever faces it can reach there, and just that local volume is subtracted. Or press and drag across one face: on release the blade is swept along the stroke at the set depth - one continuous groove of the blade's exact section, one Undo. A groove that would leave less than two nozzle widths of wall anywhere along it is refused before anything is cut. A corner gouge and an edge chamfer need no rotation - the blade lays its sweep axis along the edge itself. Click Carve again to stop. Unlike Subtract this consumes nothing, so the same blade carves the next edge too.">Carve</button>
+              <select id="carve-blade" class="vp-select" aria-label="Blade profile"
+                      title="Blade profile. flat: a slab, leaves a flat-bottomed local shave. ball: a hemisphere-ended cylinder, leaves a rounded gouge with no stress corner. vee: a wedge, leaves a V-groove or a chamfer - cut deeper for a wider one.">
+                <option value="ball">ball-nose</option>
+                <option value="flat">flat shave</option>
+                <option value="vee">V-groove</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-carve2">
+              <label class="vp-clone" title="How deep the blade goes, along the outward bisector of the faces it meets."><span id="carve-depth-label">mm</span> <input type="number" id="carve-depth" value="1" min="0.1" max="30" step="0.1"></label>
+              <label class="vp-clone"><span id="carve-a-label">R</span> <input type="number" id="carve-a" value="2" min="0.1" max="30" step="0.1"></label>
+              <label class="vp-clone"><span id="carve-b-label">L</span> <input type="number" id="carve-b" value="10" min="0.2" max="60" step="0.1"></label>
+              <label class="vp-clone" title="Spin the blade about the outward direction. 0 lays its sweep axis along the edge, which is what a chamfer wants."><span id="carve-roll-label">&deg;</span> <input type="number" id="carve-roll" value="0" min="-180" max="180" step="5"></label>
+            </div>
+            <div class="vp-row vp-row-full"><p id="carve-readout" class="carve-readout">&mdash;</p></div>
+            <!-- PUNCH (app-punch.js, nso_punch.js; docs/PUNCH.md): arm it, click a face - a
+                 round hole straight through it or to a depth, normal to the face, alone,
+                 in a grid or on a circle. A live ghost of every hole; the first hole's
+                 ring is its diameter, the anchor drags across the face, the grid's far
+                 corner is its pitch, a radial hole its radius. PUNCH is one boolean and
+                 one Undo; the card stays armed for the next face. -->
+            <div class="vp-row vp-row-full">
+              <button id="btn-punch" class="btn btn-secondary btn-punch" type="button" aria-pressed="false" aria-expanded="false" aria-controls="punch-card"
+                      title="Punch round holes. Arm it, then click a face: a hole straight through it (or to a depth), normal to the face - one, a grid, or a circle of them, drawn live. Drag the first hole's ring for its diameter and the hole (or the cross at the click) to move it on the face; a grid's far-corner hole is its pitch, a radial hole its radius. The arrows nudge it 1 mm (Shift 0.1). A hole that would leave less than two nozzle widths of wall is refused in words. PUNCH cuts them all in one boolean, one Undo; the card stays armed for the next face. Escape stops.">Punch</button>
+            </div>
+            <div class="vp-bend-panel punch-card" id="punch-card" hidden>
+              <label class="vp-bend-field" title="The hole's diameter, across its flats: a pin this size goes in. Drag the first hole's ring to change it.">&Oslash;
+                <input type="number" id="inp-punch-dia" value="3.0" min="0.8" max="100" step="0.1" aria-label="Hole diameter, mm"><span>mm</span></label>
+              <label class="vp-bend-field" title="Through: until the hole leaves the piece for good. mm: that deep below the face.">Depth
+                <select id="sel-punch-depth" class="vp-select" aria-label="Hole depth">
+                  <option value="through" selected>Through</option>
+                  <option value="mm">mm</option>
+                </select></label>
+              <label class="vp-bend-field" id="punch-depth-mm-row" hidden title="How deep, below the face.">Deep
+                <input type="number" id="inp-punch-depth" value="3" min="0.1" step="0.1" aria-label="Hole depth, mm"><span>mm</span></label>
+              <div class="punch-seg" id="punch-pattern-row" role="group" aria-label="Pattern">
+                <button class="btn btn-secondary" type="button" data-pattern="none" aria-pressed="true" title="One hole, at the click">None</button>
+                <button class="btn btn-secondary" type="button" data-pattern="grid" aria-pressed="false" title="Rows by columns, laid in the face's own plane: columns along its longest edge">Grid</button>
+                <button class="btn btn-secondary" type="button" data-pattern="radial" aria-pressed="false" title="Holes on a circle about the click, the first along the face's longest edge">Radial</button>
+              </div>
+              <div id="punch-grid-rows" class="te-rows" hidden>
+                <label class="vp-bend-field" title="Rows, across the face's longest edge.">Rows
+                  <input type="number" id="inp-punch-rows" value="2" min="1" max="100" step="1" aria-label="Grid rows"><span></span></label>
+                <label class="vp-bend-field" title="Columns, along the face's longest edge.">Cols
+                  <input type="number" id="inp-punch-cols" value="3" min="1" max="100" step="1" aria-label="Grid columns"><span></span></label>
+                <div class="vp-bend-field punch-pitch-field" title="Centre to centre. Drag the far-corner hole to change it. &times; gives the columns and the rows a pitch each.">
+                  <label for="inp-punch-pitch" id="punch-pitch-label">Pitch</label>
+                  <input type="number" id="inp-punch-pitch" value="8" min="0.1" step="0.1" aria-label="Grid pitch, mm">
+                  <button id="btn-punch-pitch-xy" class="btn btn-secondary punch-xy" type="button" aria-pressed="false" title="Separate X and Y pitch">&times;</button>
+                </div>
+                <label class="vp-bend-field" id="punch-pitch-y-row" hidden title="The rows' pitch, centre to centre.">Pitch Y
+                  <input type="number" id="inp-punch-pitch-y" value="8" min="0.1" step="0.1" aria-label="Grid row pitch, mm"><span>mm</span></label>
+                <div class="punch-seg" id="punch-anchor-row" role="group" aria-label="Anchor">
+                  <button class="btn btn-secondary" type="button" data-anchor="corner" aria-pressed="true" title="The click is the grid's first hole">Corner</button>
+                  <button class="btn btn-secondary" type="button" data-anchor="centre" aria-pressed="false" title="The click is the grid's middle">Centre</button>
+                </div>
+              </div>
+              <div id="punch-radial-rows" class="te-rows" hidden>
+                <label class="vp-bend-field" title="How many holes on the circle.">Count
+                  <input type="number" id="inp-punch-count" value="6" min="1" max="100" step="1" aria-label="Holes on the circle"><span></span></label>
+                <label class="vp-bend-field" title="The circle's radius, to the holes' centres. Drag any hole to change it.">Radius
+                  <input type="number" id="inp-punch-radius" value="10" min="0.1" step="0.1" aria-label="Circle radius, mm"><span>mm</span></label>
+              </div>
+              <p id="punch-readout" class="bend-readout">&mdash;</p>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-punch-go" class="btn btn-secondary" type="button" disabled
+                        title="Cut every hole the ghost shows, in one boolean. One Undo puts the piece back.">PUNCH</button>
+                <button id="btn-punch-cancel" class="btn btn-secondary" type="button" title="Put Punch away; the piece is unchanged.">Cancel</button>
+              </div>
+            </div>
+            <div class="vp-row vp-row-thicken">
+              <button id="btn-hollow" class="btn btn-secondary" type="button"
+                      title="Carve the interior out of a solid, following the outer surface inward and leaving a shell of the wall thickness in the box. Perpendicular distance, not a radial shrink, so a sloped wall comes out the thickness asked for. Refuses a wall under the nozzle-safety floor from nso_thickness.js, and refuses again if the wall it actually leaves measures under it. Outer surface untouched.">Hollow</button>
+              <input type="number" id="inp-hollow-mm" value="2" min="0.42" max="20" step="0.1" aria-label="Hollow wall thickness, mm">
+              <button id="btn-hollow-safe" class="btn btn-secondary" type="button"
+                      title="Hollow back out to the SAFEST minimum wall rather than to the number in the box. For reversing a Thicken in: the wall goes back down, but it stops at the nozzle-safety floor even when the wall was thinner than that before. Restoring an unprintable wall because it used to be unprintable is not a restore.">Hollow to safe min</button>
+            </div>
+            <!-- LIFT (app-lift-plate.js, docs/LIFT.md section 7): arm it on a
+                 selected piece; what stands on it is found once (the rolling
+                 ball) and counted. Hover outlines a feature, a click lifts it,
+                 Shift-click gathers several; Strip lifts everything after an
+                 untick list. Each lift is one Undo. -->
+            <div class="vp-row vp-row-lift">
+              <button id="btn-lift" class="btn btn-secondary btn-lift" type="button" aria-pressed="false"
+                      title="Lift features off a piece as their own pieces. Arm it on a selected piece: what stands on its top is found and counted. Hover outlines a feature; a click lifts it; Shift-click gathers several and they lift together when Shift is let go. Each lift is one Undo. Click Lift again to stop.">Lift</button>
+              <span id="lift-count" class="lift-count">&mdash;</span>
+            </div>
+            <div id="lift-panel" class="lift-panel" hidden>
+              <div class="vp-row vp-row-full">
+                <label class="lift-height" for="lift-height" title="A feature is offered when it stands out from the face by MORE than this. Default: one extrusion line at a 0.4 mm nozzle (NSO_Thickness.floorFor)"><span>How far out counts</span>
+                  <span id="lift-height-read">0.42 mm</span>
+                  <input type="range" id="lift-height" min="0" max="2" step="0.01" value="0.42" /></label>
+              </div>
+              <div class="vp-row vp-row-full">
+                <button id="btn-lift-strip" class="btn btn-secondary" type="button" disabled
+                        title="Lift every feature found: a short list first, untick what stays, then Confirm. One Undo for the whole strip.">Strip</button>
+              </div>
+              <div id="lift-strip" class="lift-strip" hidden>
+                <div id="lift-strip-rows"></div>
+                <p id="lift-strip-sum" class="lift-strip-sum"></p>
+                <div class="vp-row vp-row-pair">
+                  <button id="btn-lift-strip-go" class="btn btn-secondary" type="button">Confirm</button>
+                  <button id="btn-lift-strip-cancel" class="btn btn-secondary" type="button">Cancel</button>
+                </div>
+              </div>
+              <p id="lift-readout" class="carve-readout">&mdash;</p>
+            </div>
+            <!-- SPLIT TO PARTS (app-split-parts.js, nso_split_parts.js): a piece made of
+                 several shells - the print-in-place hinge after Lift, any imported
+                 multi-body STL - becomes one piece per part, each where it stood.
+                 A part is an outer shell plus the cavity shells inside it. The count
+                 beside the button is read when the piece is selected, before the
+                 button is pressed; a one-part piece is refused with the reason. -->
+            <div class="vp-row vp-row-lift" style="grid-template-columns: 1fr auto;">
+              <button id="btn-split-parts" class="btn btn-secondary btn-lift" type="button" disabled
+                      title="Split the selected piece into one piece per part, each in place at the same pose, named '&lt;name&gt; part 1..n'. A part is an outer shell plus the cavity shells inside it (a hollow stays with its outer); shells that only touch are separate parts. The count beside the button is read when you select the piece. A piece of one part is refused, with the reason. One Undo puts the original back.">Split to parts</button>
+              <span id="split-count" class="lift-count">&mdash;</span>
+            </div>
+            <div class="vp-row vp-row-full"><p id="split-readout" class="carve-readout">Select a piece to see how many parts it is.</p></div>
+            <!-- DETACH (app-detach.js, nso_detach.js; docs/DETACH.md): a detected
+                 flange comes off the piece, capped flush on its own neck wall, and
+                 lands beside it as its own closed piece. It moved here from the
+                 Crop card, id for id; Reattach, its other half, is in the Connect card. -->
+            <div class="detach-tools" id="detach-tools">
+            <div class="vp-row vp-row-full">
+              <button id="btn-detach" class="btn btn-secondary" type="button"
+                      title="Detach: find the flange on this piece and take it off. The piece is capped flush with its own neck wall, with nothing left of the flange and no gap to bridge. The flange lands beside it as its own closed piece. One Undo puts both back. Reattach (in Join) seats it somewhere else.">Detach flange</button>
+            </div>
+            <div class="vp-row vp-row-full"><p id="detach-readout" class="carve-readout">&mdash;</p></div>
+            </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu vp-group-start" id="menu-shape" data-sec="shape">
+            <summary class="vp-bar-btn" title="Smooth, Bend, and the tube's Flare, Roll and Neck">Shape</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-full">
+              <button id="btn-smooth" class="btn btn-secondary" type="button"
+                      title="Global Laplacian smoothing over the whole piece. No feature preservation - sharp edges round off too. Refuses if volume moves more than 25% either way, or if any face is painted.">Smooth</button>
+            </div>
+            <!-- BEND: the Bend button and its panel, Tube edge (Reducer, Roll, Neck)
+                 beside it; the old Bend card, unchanged (app-bend.js). -->
+            <div class="vp-row vp-row-pair vp-row-bend">
+              <button id="btn-bend" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="bend-panel"
+                      title="Bend the piece like a pipe or plate bender, inside one straight stretch: the section is carried round the arc exactly - a plate's thickness, a tube's bore and wall do not change - and everything past the bend turns with it, rigidly. Opens a panel with a live ghost of the result; click the piece to set where.">Bend</button>
+              <button id="btn-tube-edge" class="btn btn-secondary" type="button" aria-expanded="false" aria-controls="te-panel"
+                      title="Make the open end of a tube a new pipe - a reducer or an expander, its outside and bore set apart - roll it outward, or neck it anywhere along its length (a pinch or a bulge) - the whole wall, or with Walls only its outside or its bore (a socket, a spigot, a funnel mouth). The wall's thickness is carried exactly through the new section and the new wall is welded to the old. Opens a card with a live ghost of the result; click the piece near the end to treat, or where the neck goes. A neck's three rings are handles: drag the waist in or out, an end ring to stretch the band, the band itself to slide it along the tube. A reducer's four rings are handles: the OD and ID rings at the transition's end set the new Ø and bore, the T ring the transition, the R ring the run.">Tube edge</button>
+            </div>
+            <div class="vp-bend-panel" id="bend-panel" hidden>
+              <label class="vp-bend-field" title="Where the bend's middle goes, in mm along the piece from its near (low) end. Click the piece to set it.">Where
+                <input type="number" id="inp-bend-where" min="0" step="0.1" aria-label="Bend at, mm from the near end"><span>mm</span></label>
+              <label class="vp-bend-field" title="How far it folds, 1 to 180 degrees.">Angle
+                <input type="number" id="inp-bend-angle" min="1" max="180" step="1" value="90" aria-label="Bend angle, degrees"><span>°</span></label>
+              <label class="vp-bend-field" title="Radius to the section's centre line. Blank: 2.5 times the section's width in the bend direction. It must be more than half that width, or the inside face would turn inside out.">Radius
+                <input type="number" id="inp-bend-radius" min="0.01" step="0.1" placeholder="auto" aria-label="Bend radius, mm"><span>mm</span></label>
+              <label class="vp-bend-field" title="Which of the piece's sides it folds toward. Up is its own +Z.">Toward
+                <select id="sel-bend-toward" class="vp-select" aria-label="Fold toward"></select></label>
+              <label class="vp-bend-field" id="bend-roll-row" hidden title="For a section that is not a rectangle: turn the fold direction about the piece's axis, in 15° steps.">Roll
+                <input type="number" id="inp-bend-roll" step="15" value="0" aria-label="Roll, degrees"><span>°</span></label>
+              <p id="bend-readout" class="bend-readout">—</p>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-bend-go" class="btn btn-secondary" type="button" disabled
+                        title="Bend the piece as the ghost shows. One Undo puts it back.">Bend</button>
+                <button id="btn-bend-cancel" class="btn btn-secondary" type="button" title="Close the panel; the piece is unchanged.">Cancel</button>
+              </div>
+            </div>
+            <div class="vp-bend-panel te-panel" id="te-panel" hidden>
+              <label class="vp-bend-field" title="Reducer makes the end a new pipe: a new outside Ø and bore over a transition, then a straight run. Roll curls the end over round a bead. Neck pinches or bulges the tube anywhere along it.">Verb
+                <select id="sel-te-verb" class="vp-select" aria-label="Tube edge verb">
+                  <option value="reducer" selected>Reducer</option>
+                  <option value="roll">Roll</option>
+                  <option value="neck">Neck</option>
+                </select></label>
+              <label class="vp-bend-field" id="te-dir-row" hidden title="A Roll goes Out only (In is refused, not yet).">Way
+                <select id="sel-te-dir" class="vp-select" aria-label="Tube edge direction">
+                  <option value="out" selected>Out</option>
+                  <option value="in">In</option>
+                </select></label>
+              <label class="vp-bend-field" id="te-walls-row" hidden title="Which of the wall's faces Neck moves. Both: the whole wall, its thickness kept. Outside only / Bore only: that face moves by Δr and the other stays exactly where it was, so the wall gets thinner or thicker - refused under the nozzle-safety floor from nso_thickness.js. Neck with one face can step the end of the tube: Bore only out is a socket (a counterbore), Outside only in is a spigot.">Walls
+                <select id="sel-te-walls" class="vp-select" aria-label="Walls: which face moves">
+                  <option value="both" selected>Both</option>
+                  <option value="outside">Outside only</option>
+                  <option value="bore">Bore only</option>
+                </select></label>
+              <div id="te-reducer-rows" class="te-rows">
+                <div class="te-pair">
+                  <label class="vp-bend-field" title="The new pipe's outside Ø, mm. Above the tube's Ø it is an expander, below it a reducer; the tube's own Ø keeps the outside where it is (bore only). Or drag the OD ring at the transition's end toward or away from the axis (Shift: 0.1 mm steps); Left / Right arrows step it 1 mm."><i class="te-lbl">New Ø</i>
+                    <input type="number" id="inp-te-od2" min="0.1" step="0.1" aria-label="New outside diameter, mm"><span>mm</span></label>
+                  <label class="vp-bend-field" title="The new pipe's bore Ø, mm. Change it by as much as the New Ø to keep the wall; set the two apart to thin or thicken it (the readout says the wall), held to the nozzle-safety floor. Or drag the ID ring at the transition's end (Shift: 0.1 mm steps)."><i class="te-lbl">New bore</i>
+                    <input type="number" id="inp-te-id2" min="0.1" step="0.1" aria-label="New bore diameter, mm"><span>mm</span></label>
+                </div>
+                <div class="te-pair">
+                  <label class="vp-bend-field" title="How long the change from the tube's Ø to the new pipe's takes, in mm along the wall. Or drag the T ring at the transition's end along the axis (Shift: 0.1 mm steps); Up / Down arrows step it 1 mm."><i class="te-lbl">Transition</i>
+                    <input type="number" id="inp-te-trans" min="0" step="0.5" aria-label="Transition length, mm"><span>mm</span></label>
+                  <label class="vp-bend-field" id="te-run-row" title="A straight run of the new pipe on past the transition, in mm along the axis, its end square and open. 0: no run. Or drag the R ring at the run's far end along the axis; with Run 0, grab the T ring with Shift to pull a run out of it. With the R ring the last length ring touched, Up / Down step it 1 mm."><i class="te-lbl">Run</i>
+                    <input type="number" id="inp-te-run" min="0" step="0.5" value="0" aria-label="Run past the transition, mm"><span>mm</span></label>
+                </div>
+                <label class="vp-bend-field" title="Straight: each face a cone. Trumpet: each face tangent to the tube at the end, easing in (its radius changing as the square of the length) to the new Ø.">Profile
+                  <select id="sel-te-profile" class="vp-select" aria-label="Transition profile">
+                    <option value="straight" selected>Straight</option>
+                    <option value="trumpet">Trumpet</option>
+                  </select></label>
+              </div>
+              <div id="te-roll-rows" class="te-rows" hidden>
+                <label class="vp-bend-field" title="The bead's inside radius, mm: the outside face of the tube curls round a circle this size.">Radius
+                  <input type="number" id="inp-te-radius" min="0.1" step="0.5" aria-label="Roll radius, mm"><span>mm</span></label>
+                <label class="vp-bend-field" title="How far it curls over: 90, 180 or 270 degrees, or type any angle up to 360.">Angle
+                  <input type="number" id="inp-te-roll-angle" min="1" max="360" step="1" list="te-roll-angles" aria-label="Roll angle, degrees"><span>°</span></label>
+                <datalist id="te-roll-angles"><option value="90"></option><option value="180"></option><option value="270"></option></datalist>
+              </div>
+              <div id="te-neck-rows" class="te-rows" hidden>
+                <label class="vp-bend-field" title="How long the neck runs along the tube, in mm, centred where you click the tube. Or drag either end ring on the tube along its axis: the band stretches, its centre held (Shift: 0.1 mm steps).">Length
+                  <input type="number" id="inp-te-neck-length" min="0.1" step="0.5" aria-label="Neck length, mm"><span>mm</span></label>
+                <label class="vp-bend-field" title="How far the wall moves at the neck's waist, in mm: below 0 pinches the tube in, above 0 bulges it out. With Walls Both the wall's thickness is kept; with one face only that face moves. Or drag the waist ring on the tube (it sits on the face that moves): toward the axis pinches, away bulges (Shift: 0.1 mm steps); Left / Right arrows step it 1 mm, Up / Down move the band.">Δr
+                  <input type="number" id="inp-te-neck-dr" step="0.5" aria-label="Neck delta r, mm (negative pinches, positive expands)"><span>mm</span></label>
+                <label class="vp-bend-field" title="Smooth: a cosine ease in and out, tangent to the tube at both ends. Funnel: a straight taper in and a straight taper out.">Profile
+                  <select id="sel-te-neck-profile" class="vp-select" aria-label="Neck profile">
+                    <option value="smooth" selected>Smooth</option>
+                    <option value="funnel">Funnel</option>
+                  </select></label>
+              </div>
+              <p id="te-readout" class="bend-readout">—</p>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-te-go" class="btn btn-secondary" type="button" disabled
+                        title="Reduce, expand, roll or neck the tube as the ghost shows. One Undo puts it back.">Set</button>
+                <button id="btn-te-cancel" class="btn btn-secondary" type="button" title="Close the card; the piece is unchanged.">Cancel</button>
+              </div>
+            </div>
+            <!-- PULL (app-pull.js, the geometry is nso_pull.js + nso_densify.js): grab a spot and drag it. -->
+            <div class="vp-row vp-row-full">
+              <button id="btn-pull" class="btn btn-secondary btn-pull" type="button" aria-pressed="false" aria-expanded="false" aria-controls="pull-panel"
+                      title="Direct manipulation: press and drag a spot on the piece and the surface around it follows, with a soft falloff out to the radius; let go to set it (one Undo). Shift-drag moves the spot along the surface normal, in or out. A plain click drops a PIN that holds that spot still. The triangles under the grab are first subdivided to 0.5 mm. Refuses and puts the piece back if the move would leave a wall under two nozzle widths or pass through itself; will not grab a support piece.">Pull</button>
+            </div>
+            <div class="vp-bend-panel pull-panel" id="pull-panel" hidden>
+              <div class="vp-row vp-row-brush">
+                <span class="vp-brush-tag">Falloff</span>
+                <input type="range" id="inp-pull-size" min="1" max="50" step="1" value="12" aria-label="Pull falloff radius, mm"
+                       title="The falloff radius, 1 to 50 mm. It is the Brush's size slider: the two move together.">
+                <output id="out-pull-size" class="vp-brush-out">12 mm</output>
+              </div>
+              <label class="vp-clone" title="Off (the default): a wall moves as one section - each vertex is paired with the one straight through the wall from it and both move by the same amount, so the wall keeps its thickness. On: the falloff is measured along the surface and ONLY the skin under the grab moves; the skin behind it stays. That is how the inside of a tube is pushed locally while the outside stays true. The 0.8 mm wall guard still applies."><input type="checkbox" id="chk-pull-side"> This side only</label>
+              <p id="pull-readout" class="bend-readout">Press and drag on the piece to pull; click to pin.</p>
+              <div class="vp-row vp-row-pair">
+                <button id="btn-pull-clear" class="btn btn-secondary" type="button" disabled
+                        title="Take every pin off. Pins also go when you leave Pull.">Clear pins</button>
+                <button id="btn-pull-cancel" class="btn btn-secondary" type="button"
+                        title="Put a drag in progress back and leave Pull; the piece is unchanged. Escape does the same mid-drag.">Cancel</button>
+              </div>
+            </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-paint" data-sec="paint">
+            <summary class="vp-bar-btn" title="Paint faces selected or excluded, delete or extract what is painted">Paint</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-triple vp-row-paint">
+              <button id="btn-mask-select" class="btn btn-secondary btn-paint btn-paint-select" type="button" aria-pressed="false"
+                      title="Click ONE face to make it the target (pink). Skin face uses it instead of its own pick. A click on another face moves the target; a click on the target clears it. Click this button again to stop.">Paint Selected</button>
+              <button id="btn-mask-paint" class="btn btn-secondary btn-paint" type="button" aria-pressed="false"
+                      title="Click faces to exclude them (yellow) from Soften, wrap, Join, Skin and the Brush. Click a face again to include it. Click this button again to stop.">Paint Excluded</button>
+              <button id="btn-mask-clear" class="btn btn-secondary" type="button"
+                      title="Include every face again and drop the target.">Clear paint</button>
+            </div>
+            <div class="vp-row vp-row-skin vp-row-delete">
+              <button id="btn-mask-delete" class="btn btn-danger" type="button"
+                      title="Remove the target face's geometry from the piece (pink, from Paint Selected). Not an exclude - the triangles are gone. Refuses and leaves the piece untouched if the cut would empty it, split it into loose bodies, or self-intersect. Stands down if the target is also painted excluded.">Delete painted</button>
+              <select id="sel-mask-delete" class="vp-select" title="Face: cut the face out and leave the rim open. Face+seal: cut it out and let Repair close the rim, reverting the whole delete if it cannot. Shell: cut out the whole body that face belongs to." aria-label="Delete mode">
+                <option value="face" selected>Face</option>
+                <option value="face-seal">Face+seal</option>
+                <option value="shell">Shell</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-skin vp-row-delete">
+              <button id="btn-extract-sel" class="btn btn-secondary" type="button"
+                      title="Copy the target face's region (pink, from Paint Selected) onto the plate as its own piece, ready to move, export or print on its own. The opposite of Delete painted: nothing is removed and the piece you painted is left exactly as it was. Stands down if the target is also painted excluded.">Extract selection</button>
+            </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-surface" data-sec="surface">
+            <summary class="vp-bar-btn" title="Soften the edges, Mirror, skin, skin patch, trace a raster, texture">Surface &amp; edges</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-opts">
+              <label class="vp-clone">R <input type="number" id="inp-soften-r" value="0.5" min="0.05" max="5" step="0.05"></label>
+              <label class="vp-clone" title="On: one click wraps all six faces of a box. Off: one click bakes only the face you pick."><input type="checkbox" id="chk-full-wrap" checked> Full wrap</label>
+            </div>
+            <div class="vp-row vp-row-full"><button id="btn-soften" class="btn btn-secondary" type="button">Soften</button></div>
+            <div class="vp-row vp-row-full">
+              <select id="sel-edge-treat" class="vp-select">
+                <option value="fillet" selected>Round</option>
+                <option value="corners">Corners</option>
+                <option value="cornersedges">Corners+edges</option>
+                <option value="chamfer">Bevel</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-mirror">
+              <button id="btn-mirror" class="btn btn-secondary" type="button"
+                      title="Reflect the piece across a plane perpendicular to its dominant axis. The other two axes stay bit for bit. Default plane is the clean-band cut Extend would use; type 0 for X→−X. Refuses a plane that is not an exact float32 mirror. Leave the box blank and press once to read the axis and the plane.">Mirror</button>
+              <input type="number" id="inp-mirror-plane" step="any"
+                     placeholder="plane" aria-label="Mirror plane, mm">
+            </div>
+            <div class="vp-row vp-row-skin">
+              <button id="btn-skin-face" class="btn btn-secondary" type="button" title="Put a contact skin on the selected piece's target face (pink, from Paint Selected). With no target: on piece A's flat face that looks at B in a Join, or its top face outside one. A relief whose tips are all B touches; then Seat with gap 0 to rest B on the tips. Refuses a non-rectangular face; stands down if that face is painted excluded.">Skin face</button>
+              <select id="skin-pattern" class="vp-select" title="Skin pattern. crosshatch: rib lattice (0.42 mm ribs, 1.2 mm pitch, 0.6 tall) - the pitch that still prints on a 0.6 nozzle, which is why it is the default. crosshatch-fine: the same lattice at 0.84 mm pitch, 1.43x the ribs, leaving a 0.42 mm channel = exactly one 0.4 mm-nozzle extrusion line - 0.4 NOZZLE ONLY, a 0.6 nozzle fuses it. zigzag: sawtooth ridges (0.42 mm crests, 2 mm pitch). ring: one tapered ring (r 5, wall 0.8 to 0.4, 1 mm tall)." aria-label="Skin pattern">
+                <option value="crosshatch">crosshatch</option>
+                <option value="crosshatch-fine">crosshatch-fine</option>
+                <option value="zigzag">zigzag</option>
+                <option value="ring">ring</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-skin vp-row-skin2">
+              <button id="btn-skin-wrap" class="btn btn-secondary" type="button" title="Put the same skin on EVERY flat rectangular face of the piece at once - all six faces of a box. Faces painted excluded are left alone and named; a face that is not a rectangle is skipped and named. Not a curved wrap: a cylinder's side is still refused.">Skin wrap</button>
+              <label class="vp-repair vp-skin-free" title="Layer 2 as its own free-hanging shell: a sheet resting on layer 1's tips with its own relief on top. The piece then carries two shells, so this sets the Non-solid flag on it. Undo takes the flag off with the geometry. The sheet bridges from tip to tip when it prints.">
+                <span>Free</span><input type="checkbox" id="chk-skin-free">
+              </label>
+              <select id="skin-layer2" class="vp-select" title="Second skin layer, the row's own: off means one layer. composed (Free off): layer 2 rides on layer 1's tips in one closed shell - zigzag crests cut the contact hardest, a crosshatch mostly just makes the relief taller, and the status reports both numbers. With Free on: layer 2 becomes its own free-hanging sheet resting on the tips, a second breakaway interface, and the piece is flagged non-solid." aria-label="Skin layer 2 pattern">
+                <option value="off">off</option>
+                <option value="zigzag">zigzag</option>
+                <option value="crosshatch">crosshatch</option>
+                <option value="crosshatch-fine">crosshatch-fine</option>
+                <option value="ring">ring</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-skin">
+              <button id="btn-skin-patch" class="btn btn-secondary" type="button" title="Bake the skin pattern as its own printable piece instead of onto a face - the relief alone, like a washer you can test on its own. Adds a NEW piece (30 x 30 mm, the same footprint the skin samples use) and leaves every existing piece untouched. bordered: the pattern inside a solid 1.2 mm rim standing 0.6 mm proud of its tips, one closed shell. loose: the pattern's features alone, solid, no rim and no backing plate - a free-standing one-extrusion-line lattice, so this one is flagged Non-solid. sandwich: double-sided - the pattern on BOTH faces with no floor between them, for a coupon that goes between two parts; also flagged Non-solid.">Skin patch</button>
+              <select id="skin-patch-variant" class="vp-select" title="Which standalone patch. bordered: a washer - the pattern held inside a solid rim that takes the handling, self-contained and closed, with the pattern on ONE side of a solid floor. loose: the raw pattern only, no frame and no backing plate, with ties where the pattern's own features do not touch each other (the zigzag's ridges). sandwich: double-sided - the pattern facing outward on BOTH faces with no floor between them, closed by a frame rib at the pattern's own width instead of a proud rim. Use it when the piece goes BETWEEN two parts: a bordered washer would present its solid floor to one of them and weld on area alone. Crosshatch family only - the zigzag and the ring taper, so their two faces are not the same pattern. All three are real walls, never an infinitely thin surface." aria-label="Skin patch variant">
+                <option value="bordered">bordered</option>
+                <option value="loose">loose</option>
+                <option value="sandwich">sandwich</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-full">
+              <button id="btn-trace-raster" class="btn btn-secondary" type="button" title="Trace a picture of line art - a PNG, JPEG or anything else the browser can open - into flat printed lines, and add it as a NEW piece. Every existing piece is left untouched. The picture supplies the CENTRELINE only: it is thresholded to ink, thinned to a one-pixel skeleton, traced, and rebuilt at the line width and height below, so however thick or thin the strokes were drawn, what prints is one extrusion line of the width you asked for, with no stair steps. Black draws on white by default; tick Invert for white on black. The result is closed and watertight, but every wall in it is a single extrusion line, so the new piece is flagged Non-solid.">Trace raster</button>
+              <input id="raster-file" type="file" accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.bmp" style="display:none" aria-label="Raster image to trace">
+            </div>
+            <div class="vp-row vp-row-carve2">
+              <label class="vp-clone" title="The finished piece's WIDTH in mm. A raster has pixels, not millimetres, so this is the one number the picture cannot supply: the scale is this width divided by the image's pixel width, and the height follows the image's own aspect."><span>mm</span> <input type="number" id="raster-size" value="30" min="1" max="500" step="1" aria-label="Traced piece width in mm"></label>
+              <label class="vp-clone" title="Ink threshold, luminance 1..254. A pixel is ink when it is DARKER than this. Raise it to pick up a faint or pencil-grey line, lower it to drop a grey background or JPEG mottling."><span>Thr</span> <input type="number" id="raster-threshold" value="128" min="1" max="254" step="1" aria-label="Ink threshold"></label>
+              <label class="vp-clone" title="The printed line's WIDTH in mm. 0.42 is the measured Bambu extrusion line and one line at a 0.4 mm nozzle - the same figure this repo carries as its minimum wall; the measured range runs to 0.61. This is the section the caller supplies and it has nothing to do with how thick the strokes were drawn."><span>W</span> <input type="number" id="raster-line-width" value="0.42" min="0.05" max="5" step="0.01" aria-label="Printed line width in mm"></label>
+              <label class="vp-clone" title="The printed line's HEIGHT in mm - the layer height. Every traced line comes out this tall: there is no grayscale relief mode, a grey picture is ink or not-ink."><span>H</span> <input type="number" id="raster-line-height" value="0.3" min="0.05" max="5" step="0.01" aria-label="Printed line height in mm"></label>
+            </div>
+            <div class="vp-row vp-row-full">
+              <label class="vp-clone" title="Ink is the LIGHT side instead - for a picture drawn white on black."><input type="checkbox" id="raster-invert"> <span>Invert: ink is the light side</span></label>
+            </div>
+            <div class="vp-row vp-row-skin vp-row-texture">
+              <button id="btn-texture" class="btn btn-secondary" type="button" title="Cover a CYLINDER's curved side with one conformal relief that wraps all the way round - no seam and no bald stripe. Not Soften's Full wrap (that is edge treatment on a box) and not Skin wrap (that is flat rectangular faces one at a time). The caps keep their planes. Refuses anything that is not a cylinder and says what it saw; stands down if any facet of the curved side is painted excluded.">Texture</button>
+              <select id="sel-texture-pattern" class="vp-select" title="Pattern laid out on the unrolled band: u is arc length round the cylinder, v is along its axis. crosshatch: rib lattice. zigzag: sawtooth ridges. (ring builds its own surface and has no height field to unroll, so it is not offered here.)" aria-label="Texture pattern">
+                <option value="crosshatch">crosshatch</option>
+                <option value="zigzag">zigzag</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-opts vp-row-texture-opts">
+              <label class="vp-clone" title="Target arc pitch in mm, measured along the curve. It is snapped to an exact divisor of the circumference so the pattern closes on itself; the status line says what it was snapped to.">Pitch <input type="number" id="inp-texture-pitch" value="1.2" min="0.3" max="10" step="0.1"></label>
+              <label class="vp-clone" title="How far the relief stands off the curved surface, in mm.">Depth <input type="number" id="inp-texture-depth" value="0.6" min="0.1" max="4" step="0.1"></label>
+            </div>
+            </div>
+          </details>
+          <details class="vp-menu vp-shell-menu vp-col-menu" id="menu-sculpt" data-sec="sculpt">
+            <summary class="vp-bar-btn" title="Brush: Carve, Emboss, Smooth here">Sculpt</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-pair">
+              <button id="btn-brush" class="btn btn-secondary btn-brush" type="button" aria-pressed="false"
+                      title="Freehand local deformation. Drag on the piece; the whole drag is one operation with one undo. Carve pushes in along the surface normal, Emboss pushes out, Smooth relaxes just the area under the brush. Refuses and reverts if the stroke would add a self-intersection, a sliver or a T-junction. Stands down on a face painted excluded.">Brush</button>
+              <select id="sel-brush-mode" class="vp-select" title="Carve in, Emboss out, or smooth only the area under the brush.">
+                <option value="carve" selected>Carve</option>
+                <option value="emboss">Emboss</option>
+                <option value="smooth">Smooth here</option>
+              </select>
+            </div>
+            <div class="vp-row vp-row-brush">
+              <span class="vp-brush-tag">Size</span>
+              <input type="range" id="inp-brush-size" min="1" max="50" step="1" value="12" aria-label="Brush radius mm">
+              <output id="out-brush-size" class="vp-brush-out">12 mm</output>
+            </div>
+            <div class="vp-row vp-row-brush">
+              <span class="vp-brush-tag">Force</span>
+              <input type="range" id="inp-brush-intensity" min="0" max="1" step="0.05" value="0.5" aria-label="Brush intensity">
+              <output id="out-brush-intensity" class="vp-brush-out">0.50</output>
+            </div>
+            <div class="vp-row vp-row-full">
+              <label class="vp-clone" title="Soft is a smoothstep dish. Hard keeps the floor of the dab nearly flat and makes the wall steep - the seam band is relaxed either way."><input type="checkbox" id="chk-brush-hard"> Hard falloff</label>
+            </div>
+            </div>
+          </details>
+          <!-- CHECK & REPAIR: on its own, pinned over the view row. -->
+          <details class="vp-menu vp-shell-menu vp-col-menu vp-group-start" id="menu-repair" data-sec="repair">
+            <summary class="vp-bar-btn" title="Check piece, Cap open faces, Seal, Non-solid, Solidify">Check &amp; repair</summary>
+            <div class="vp-menu-body vp-finish">
+            <div class="vp-row vp-row-full">
+              <button id="btn-check-defects" class="btn btn-secondary btn-check-defects" type="button" disabled aria-pressed="false"
+                      title="Run the canonical checker on this piece and paint what it finds ON the mesh: red lines on open edges, orange on non-manifold edges, red patches on the triangles of every piercing pair, violet on faces whose wall or gap measures under 0.42 mm. A snapshot, not a live check - it clears itself when a bake changes the piece.">Check piece</button>
+            </div>
+            <div class="vp-row vp-row-full">
+              <button id="btn-cap-open" class="btn btn-secondary" type="button" title="Close every open boundary loop of the selected piece with a flat cap.">Cap open faces</button>
+            </div>
+            <div class="vp-row vp-row-full">
+              <label class="vp-flag vp-flag-repair" title="A flag, not an action: it changes what the next Seal click does. On, Seal runs the full repair pass - weld, drop degenerate and duplicate triangles, split pinches, fix T-junctions, peel flaps and fan holes shut. Off, Seal only closes openings.">
+                <input type="checkbox" id="chk-seal-repair"><span class="vp-flag-face">Repair</span>
+              </label>
+            </div>
+            <div class="vp-row vp-row-full">
+              <button id="btn-seal" class="btn btn-secondary" type="button">Seal</button>
+            </div>
+            <div class="vp-row vp-row-full vp-row-sep">
+              <label class="vp-flag vp-flag-nonsolid" title="This piece is meant to be open - a vase-mode shell, a single-wall squishy, a woven sheet. Only the 'must be closed' checks stand aside: self-intersection, degenerate and winding checks still apply. Per piece, never guessed from the mesh.">
+                <input type="checkbox" id="chk-non-solid" disabled><span class="vp-flag-face">Non-solid</span>
+              </label>
+            </div>
+            <div class="vp-row vp-row-full"><button id="btn-solidify" class="btn btn-secondary" type="button">Solidify</button></div>
+            </div>
+          </details>
+          <div class="vp-shell-view vp-group-start">
+            <button id="btn-xray" class="vp-bar-btn" type="button" aria-label="X-ray" title="X-ray: see through the pieces">X</button>
+            <button id="btn-watch" class="vp-bar-btn" type="button"
+                    aria-pressed="false" aria-label="Eye"
+                    title="Watch: log errors / failed loads / status lines, and check the rendered scene against the app state after every Undo, bake and tool switch.">&#128065;</button>
+            <button id="btn-frame-view" class="vp-bar-btn" type="button" aria-label="Frame the view" title="Frame the selected piece, or the plate">◎</button>
+          </div>
+          </div>
+        </div>
+        <div id="move-vert-wrap" class="move-vert-wrap" hidden>
+          <input type="range" id="move-vert-slider" min="0" max="80" step="0.25" value="0"
+                 orient="vertical" aria-label="Lift the piece, mm">
+          <span id="move-vert-read" class="move-vert-read">0.00 mm</span>
+        </div>
+        <!-- Findings: what Check found, one row per kind, docked at the right
+             edge under the top-right buttons. app-findings.js fills it and
+             positions it; hidden until Check runs. docs/FINDINGS.md. -->
+        <section id="findings-card" class="findings-card" hidden aria-label="Findings" aria-live="polite">
+          <div class="findings-head">
+            <h2>Findings</h2>
+            <span id="findings-piece" class="findings-piece"></span>
+            <button id="btn-findings-close" class="findings-close" type="button" aria-label="Close findings"
+                    title="Close the card and clear the check's marks">&times;</button>
+          </div>
+          <div id="findings-stale" class="findings-stale" hidden>
+            <span>The piece changed. Check again</span>
+            <button id="btn-findings-recheck" class="btn btn-secondary findings-recheck" type="button">Check again</button>
+          </div>
+          <p id="findings-result" class="findings-result" hidden></p>
+          <div id="findings-actions" class="findings-actions" hidden>
+            <button id="btn-findings-fixall" class="btn btn-secondary findings-fixall" type="button"
+                    title="Run every finding's own fix, one after the other, in the order shown. Each is its own Undo. A gap between faces is advisory and is left for you.">Fix all</button>
+          </div>
+          <ul id="findings-done" class="findings-done" hidden></ul>
+          <ul id="findings-rows" class="findings-rows"></ul>
+          <p id="findings-unplaced" class="findings-note" hidden></p>
+        </section>
+        <div class="viewport-overlay viewport-overlay-br">
+          <p id="adjust-status" class="status-hud status-hud-id">HUD inside7</p>
+          <p id="status" class="status status-hud"></p>
+        </div>
+        <div id="photoset-drawer" class="photoset-drawer" hidden>
+          <div class="photoset-drawer-head">
+            <h2>Capture report</h2>
+            <button id="btn-photoset-close" class="btn btn-ghost" type="button">Close</button>
+          </div>
+          <div id="photoset-report" class="photoset-report"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <div id="ctx-menu" class="ctx-menu hidden" role="menu" data-piece="">
+    <button type="button" id="ctx-undo" class="ctx-item" role="menuitem" disabled><span>Undo</span><kbd id="ctx-undo-key" class="ctx-key">Ctrl+Z</kbd></button>
+    <button type="button" id="ctx-redo" class="ctx-item" role="menuitem" disabled><span>Redo</span><kbd id="ctx-redo-key" class="ctx-key">Ctrl+Y</kbd></button>
+    <div class="ctx-sep" role="separator"></div>
+    <button type="button" id="ctx-clone" class="ctx-item" role="menuitem" title="One copy of the piece, placed beside it" disabled>Clone</button>
+    <button type="button" id="ctx-mirror" class="ctx-item" role="menuitem" title="Reflect the piece across the plane through its centre, perpendicular to the plate's X axis. One Undo." disabled>Mirror across X</button>
+    <button type="button" id="ctx-export" class="ctx-item" role="menuitem" title="Open the Export card to download the selected piece as STL or 3MF" disabled>Export selected as&hellip;</button>
+    <button type="button" id="ctx-export-plate" class="ctx-item" role="menuitem" title="Open the Export card to export the whole plate as STL or 3MF" disabled>Export plate</button>
+    <div class="ctx-sep" role="separator"></div>
+    <button type="button" id="ctx-clear-plate" class="ctx-item" role="menuitem" title="Take every piece off the plate; the loaded pieces stay in the list" disabled>Clear plate</button>
+    <button type="button" id="ctx-delete" class="ctx-item ctx-danger" role="menuitem" disabled>Delete piece</button>
+  </div>
+
+  <!-- ===================================================================
+       G-scope (the Microscope view). app-microscope.js owns it; deleting this block,
+       the #btn-microscope button and that script tag removes the feature
+       whole. The layout (docs/GSCOPE.md, item 12): ONE card, always up,
+       top-left - IMPORT (its ▾ holds Read plate), the Normal | Slice switch,
+       and the selection rows for that side; a pinned BACK · ◎ · CLEAR ·
+       EXPORT · CLOSE row in the top-right corner, its Export card under it;
+       the Features list and the readouts docked bottom-left, the layer-range
+       slider on the right. The viewport takes the whole panel. Every id is
+       the one the engine and the gscope helper scripts find their elements
+       by. The ▾ menu's and Export's open / close and the buttons' enabled
+       state are the shell's own (app-microscope.js, "Shell").
+       =================================================================== -->
+  <div id="microscope" class="ms-panel" tabindex="0" hidden>
+    <div id="ms-viewport" class="ms-viewport">
+      <div id="ms-mode-badge">Whole part</div>
+
+      <!-- The top-right corner: Back (only when the document's producer gave
+           one), the camera framing, Clear, Export (its card opens just under
+           this row) and Close. Both plates stand side by side in the view - the
+           loaded plate on the left, the second plate on its right; a click on a
+           plate makes it the active one (docs/GSCOPE.md). Back and Close are the
+           only exits, and each ends the visit whole. -->
+      <div id="ms-corner" class="ms-corner">
+        <button id="ms-btn-back-producer" type="button" class="vp-bar-btn" hidden
+                title="Close G-scope and go back to where this came from, with everything there as you left it">Back</button>
+        <button id="ms-btn-frame" type="button" class="vp-bar-btn" aria-label="Frame the view"
+                title="Frame both plates and everything on them">&#9678;</button>
+        <button id="ms-btn-take-clear" type="button" class="vp-bar-btn"
+                title="Empty the active plate - the other plate is not touched. An emptied plate is ready for Import or Read plate">Clear</button>
+        <button id="ms-nav-export" type="button" class="vp-bar-btn ms-nav"
+                data-card="ms-card-export" aria-controls="ms-card-export" aria-expanded="false">Export</button>
+        <button id="ms-close" type="button" class="vp-bar-btn">Close</button>
+      </div>
+
+      <!-- THE CARD (round 2c, docs/GSCOPE.md item 12): one, always up, top-left.
+           Its head is IMPORT - its ▾ holds READ PLATE - and the view switch,
+           Normal (the mesh) | Slice (the toolpaths). Its rows are the selection
+           options for the side the switch is on, and the document decides the
+           side: a toolpath is the Slice side. Each row names the sides it shows
+           on (data-on); the card names the side it is on (data-side). The
+           engine and app-gscope-slice.js still find every control by its id. -->
+      <div id="ms-main-card" class="ms-main-card" role="group" aria-label="G-scope" data-side="normal">
+        <div class="ms-main-head">
+          <div class="ms-import" role="group" aria-label="Import">
+            <button id="ms-btn-open" type="button" class="ms-import-btn"
+                    title="Open a file onto the active plate (it replaces what that plate holds; the other plate is not touched). STL and plain 3MF are not sliced, so they have no layers and no features and draw as whole parts.">Import</button>
+            <button id="ms-btn-import-more" type="button" class="ms-import-more"
+                    aria-haspopup="menu" aria-controls="ms-import-menu" aria-expanded="false"
+                    aria-label="More ways in: Read plate" title="Read plate">&#9662;</button>
+          </div>
+          <!-- app-gscope-slice.js owns the switch: Slice slices the open mesh with
+               the in-house slicer and shows the result; Normal goes from a slice
+               made here back to its mesh, and on a mesh re-frames it. -->
+          <div id="ms-camera-row" class="ms-switch" role="group" aria-label="View: Normal (the mesh) or Slice (the toolpaths)">
+            <button id="ms-cam-normal" type="button" class="ms-switch-side active" aria-pressed="true"
+                    title="The mesh: the pieces as they are. From a slice made here, back to the mesh it was made from">Normal</button>
+            <span class="ms-switch-track" aria-hidden="true"><span class="ms-switch-knob"></span></span>
+            <button id="ms-cam-slice" type="button" class="ms-switch-side" aria-pressed="false"
+                    title="The toolpaths: slice every piece into real layers, walls and infill with the in-house slicer (Slice settings) and list its features">Slice</button>
+          </div>
+        </div>
+        <div class="ms-main-rows">
+          <!-- REGION, both sides. Armed, a click on a piece PLACES a capture box
+               and does nothing else; its dots (always on top, always theirs to
+               press) size it; a click inside it, or Isolate, isolates what it
+               holds; Escape removes a box that is not isolated. -->
+          <div id="ms-region-row" class="ms-row" data-on="normal slice">
+            <div class="ms-btn-row">
+              <button id="ms-mode-select" type="button" aria-pressed="false"
+                      title="The capture box: a click on a piece places one. Drag its dots to size it; click inside it, or Isolate, to isolate what it holds. Esc removes it">Region</button>
+              <button id="ms-btn-isolate" type="button" disabled
+                      title="Isolate what the capture boxes hold">Isolate</button>
+              <button id="ms-btn-clear" type="button" disabled
+                      title="Remove every capture box">Clear boxes</button>
+            </div>
+            <p class="ms-note" id="ms-region-note" hidden>Click a piece: a box. Drag its dots to size it, then click inside it (or Isolate). Esc removes it.</p>
+          </div>
+          <!-- WHOLE PART, the Normal side: back out of any isolate. -->
+          <div id="ms-whole-row" class="ms-row" data-on="normal">
+            <div class="ms-btn-row">
+              <button id="ms-btn-back" type="button" disabled
+                      title="Back out of the isolate: the whole part again">Whole part</button>
+            </div>
+          </div>
+          <!-- TAKE BAND, the Slice side. The layer-range slider's range IS the
+               band: this isolates it as one piece, to drag onto the other plate
+               or export. (It was Crop Z's "Crop out band".) -->
+          <div id="ms-band-row" class="ms-row" data-on="slice">
+            <div class="ms-btn-row">
+              <button id="ms-btn-take-band" type="button" disabled
+                      title="Isolate everything inside the layer-range slider's band as one piece - drag it onto the other plate, or Export it">Take band</button>
+            </div>
+            <p class="ms-note" id="ms-band-read">&mdash;</p>
+          </div>
+          <!-- Toolpath | Solid, the Slice side. View only: it changes what is
+               drawn, never what is selected. -->
+          <div id="ms-render-row" class="ms-row" data-on="slice">
+            <div class="ms-btn-row ms-seg" role="group" aria-label="Draw the toolpath as">
+              <button id="ms-render-toolpath" type="button" class="active" aria-pressed="true"
+                      title="Every move as a line, as the slicer wrote it">Toolpath</button>
+              <button id="ms-render-solid" type="button" aria-pressed="false"
+                      title="Every continuous run of bead swept into one closed solid, capped only where the nozzle stopped - what Export as solid writes">Solid</button>
+            </div>
+            <p class="ms-note" id="ms-render-read">&mdash;</p>
+          </div>
+          <!-- The in-house slicer's settings (nso_slicer.js, docs/SLICER.md), the
+               Slice side, collapsed. app-gscope-slice.js owns them: their defaults
+               are the plate's printer profile, and they take effect on the next
+               slice (Normal, then Slice again). The report (#ms-slice-read) is in
+               the readouts. -->
+          <div id="ms-slice-row" class="ms-row" data-on="slice">
+            <button id="ms-slice-settings-toggle" type="button" class="ms-disclose"
+                    aria-expanded="false" aria-controls="ms-slice-settings">Slice settings</button>
+            <div id="ms-slice-settings" hidden>
+              <div class="ms-btn-row" data-flex="1">
+                <label class="ms-note" for="ms-slice-nozzle" style="margin:0">nozzle
+                  <select id="ms-slice-nozzle" style="width:auto" title="Walls and infill take the repo's measured line for it: 0.42 mm at 0.4, 0.63 mm at 0.6">
+                    <option value="0.4" selected>0.4</option>
+                    <option value="0.6">0.6</option>
+                  </select></label>
+                <label class="ms-note" for="ms-slice-layer" style="margin:0">layer
+                  <input type="number" id="ms-slice-layer" value="0.2" min="0.05" max="0.6" step="0.05" /></label>
+                <label class="ms-note" for="ms-slice-walls" style="margin:0">walls
+                  <input type="number" id="ms-slice-walls" value="2" min="1" max="10" step="1" /></label>
+              </div>
+              <div class="ms-btn-row" data-flex="1">
+                <label class="ms-note" for="ms-slice-density" style="margin:0">infill
+                  <input type="number" id="ms-slice-density" value="15" min="0" max="100" step="5" />%</label>
+                <select id="ms-slice-pattern" style="width:auto" title="Sparse infill pattern">
+                  <option value="grid" selected>grid</option>
+                  <option value="zigzag">zigzag</option>
+                  <option value="lines">lines</option>
+                </select>
+                <label class="ms-note" for="ms-slice-angle" style="margin:0">support below
+                  <input type="number" id="ms-slice-angle" value="30" min="1" max="89" step="1"
+                         title="Printable angle off the plate. 30 is the real Bambu profile's support_threshold_angle; auto-aim uses 45" />&deg;</label>
+              </div>
+              <p class="ms-note" id="ms-slice-settings-note">From the plate's printer profile. They take effect on the next slice: Normal, then Slice again.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- IMPORT's ▾: the backup way in. Opening G-scope from the plate already
+           brings the plate, so Read plate is rarely needed - it is here for
+           after an Import. A card of the shell's (one open at a time; Escape,
+           a press outside it, a choice or CLOSE shuts it), opening under the
+           card's head. Both ways in load into the ACTIVE plate. -->
+      <div id="ms-import-menu" class="ms-card ms-menu" role="menu" aria-label="More ways in" data-nav="ms-btn-import-more"
+           aria-describedby="ms-import-menu-note">
+        <button id="ms-btn-plate" type="button" role="menuitem"
+                title="Read the pieces that are on the plate right now, as placed, onto the active plate. The plate itself is not changed.">Read plate</button>
+        <p class="ms-note" id="ms-import-menu-note" role="presentation">The pieces on the plate as they stand, onto the active plate. Opening G-scope from the plate already brings them.</p>
+      </div>
+
+      <!-- Export: one card for all six. Which rows show is the engine's call
+           (a selection; a toolpath; a slice made here), as it always was. -->
+      <div id="ms-card-export" class="ms-card ms-card-corner" role="group" aria-label="Export" data-nav="ms-nav-export">
+        <div class="ms-xgroup">
+          <div class="ms-section-title" id="ms-export-sel-title">Selection</div>
+          <div id="ms-export-row" data-flex="0" style="display:none;">
+            <div class="ms-btn-row">
+              <button id="ms-btn-export-plate" type="button"
+                      title="Leave the microscope and put the selection on the plate in the main Nest 3D viewport, as a standalone object with undo wired">Export to plate</button>
+              <button id="ms-btn-export-stl" type="button"
+                      title="Download just the selection as a binary STL - the same geometry Export to plate would add">Export as STL</button>
+            </div>
+          </div>
+          <div class="ms-btn-row" id="ms-export-solid-row" data-flex="1" style="display:none;">
+            <button id="ms-btn-export-solid-plate" type="button"
+                    title="Put the selection on the plate as a real solid: each continuous run of bead swept into one closed shell along its own moves, capped only where the nozzle stopped. No boolean union.">Export as solid</button>
+            <button id="ms-btn-export-solid-stl" type="button"
+                    title="Download the same solid as a binary STL">Solid STL</button>
+          </div>
+        </div>
+        <div class="ms-xgroup">
+          <div class="ms-section-title">Sliced piece</div>
+          <div class="ms-btn-row" id="ms-slice-export-row" data-flex="1" style="display:none;">
+            <button id="ms-btn-slice-export-plate" type="button"
+                    title="Put the piece this slice was made from onto the plate as its own object">Export piece to plate</button>
+            <button id="ms-btn-slice-export-stl" type="button"
+                    title="Download the piece this slice was made from as an STL">Export piece as STL</button>
+          </div>
+        </div>
+        <!-- A plate of pieces (either plate): the whole plate. -->
+        <div class="ms-xgroup">
+          <div class="ms-section-title">Whole plate</div>
+          <div class="ms-btn-row" id="ms-take-export-row" data-flex="1" style="display:none;">
+            <button id="ms-btn-take-export-plate" type="button"
+                    title="Put every piece on the active plate onto the main plate, each as its own object (one Undo)">Export to plate</button>
+            <button id="ms-btn-take-export-stl" type="button"
+                    title="Download the whole of the active plate as one STL, the pieces where they stand">Export as STL</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- The readouts, always up: down the left wall under the card, the file
+           line over the FEATURES list (Check all and the minimize toggle in its
+           head); along the bottom, the selection / segment info (a hovered
+           move's own line too), the Slice report and the mode hint. The list is
+           the slicer's line types and nothing else - Bambu-style: swatch, name,
+           count, a Display check - and acts on both plates; surface features
+           are the plate's now. -->
+      <div id="ms-dock" class="ms-dock">
+        <!-- Left wall, under the card: the file line, and the legend right
+             below it. -->
+        <div id="ms-dock-left" class="ms-dock-left">
+          <div class="ms-glass ms-head">
+            <h1 id="ms-title">G-scope</h1>
+            <p class="ms-sub" id="ms-sub">The plate, or an STL, a 3MF or a sliced .gcode.3mf.</p>
+          </div>
+          <div id="ms-legend-float" class="ms-section">
+            <div class="ms-legend-head">
+              <div class="ms-section-title" id="ms-legend-title">Features</div>
+              <!-- Check all (it was the VIEW card's): every box checked, Travel too - and nothing else. -->
+              <button id="ms-btn-show-all" type="button" class="ms-legend-btn" disabled
+                      title="Check every box in the Features list: every line type shown, Travel too">Check all</button>
+              <button id="ms-legend-toggle" type="button" aria-expanded="true"
+                      aria-controls="ms-legend" title="Minimize the list">&minus;</button>
+            </div>
+            <div id="ms-legend"></div>
+          </div>
+        </div>
+        <!-- Along the bottom, right of the legend: the boxes sit side by side
+             so they stay low and clear of the piece. -->
+        <div id="ms-readouts" class="ms-readouts">
+          <div class="ms-glass ms-section">
+            <div class="ms-section-title" id="ms-info-title">Selection / segment info</div>
+            <div id="ms-info">No file open.</div>
+          </div>
+          <div class="ms-glass ms-section" id="ms-slice-readout" style="display:none;">
+            <p class="ms-note" id="ms-slice-read">&mdash;</p>
+          </div>
+          <div id="ms-hint-badge"></div>
+        </div>
+      </div>
+
+      <!-- The layer-range slider, docked to the viewport's right edge. Two
+           handles: the lower and upper Z the view draws. One step apart is one
+           layer; spread apart is a chunk; the ends are everything. -->
+      <!-- A marker or a support, clicked: what to build there, or what to do
+           with the one that is there. app-gscope-support.js owns it. -->
+      <div id="ms-support-pop" class="ms-pop" hidden>
+        <div id="ms-sp-title" class="ms-pop-title">&mdash;</div>
+        <div id="ms-sp-sub" class="ms-note">&mdash;</div>
+        <label class="ms-pop-field" for="ms-sp-style">Style
+          <select id="ms-sp-style">
+            <option value="strut">Straight strut</option>
+            <option value="tree">Tree</option>
+            <option value="gecko-hand">Gecko-hand</option>
+          </select></label>
+        <label class="ms-pop-field" for="ms-sp-size">Size (strut side, mm)
+          <input type="number" id="ms-sp-size" value="1.2" min="0.4" max="6" step="0.1"
+                 title="The cross-section side of the strut, trunk and branches. Never below the nozzle's wall floor - the generator raises it if asked for less." /></label>
+        <label class="ms-pop-check" for="ms-sp-rest">
+          <input type="checkbox" id="ms-sp-rest" />
+          May rest on the part</label>
+        <div class="ms-btn-row">
+          <button id="ms-sp-generate" type="button">Generate</button>
+          <button id="ms-sp-apply" type="button">Apply</button>
+          <button id="ms-sp-remove" type="button">Remove</button>
+          <button id="ms-sp-cancel" type="button">Cancel</button>
+        </div>
+        <p id="ms-sp-read" class="ms-note"></p>
+      </div>
+      <div id="ms-zr" class="ms-zr" hidden>
+        <div id="ms-zr-hi-read" class="ms-zr-read">&mdash;</div>
+        <div id="ms-zr-track" class="ms-zr-track">
+          <div id="ms-zr-fill" class="ms-zr-fill" title="Drag to move the whole band"></div>
+          <div id="ms-zr-hi" class="ms-zr-handle ms-zr-handle-hi" role="slider" tabindex="0"
+               aria-label="Upper Z bound" aria-valuemin="0"></div>
+          <div id="ms-zr-lo" class="ms-zr-handle ms-zr-handle-lo" role="slider" tabindex="0"
+               aria-label="Lower Z bound" aria-valuemin="0"></div>
+        </div>
+        <div id="ms-zr-lo-read" class="ms-zr-read">&mdash;</div>
+        <div id="ms-zr-count" class="ms-zr-count">&mdash;</div>
+        <button id="ms-zr-card" class="ms-zr-card" type="button"
+                title="The range, as one card: hover to outline it, click to isolate it, drag it onto plate 2">Range</button>
+        <button id="ms-zr-all" class="ms-zr-all" type="button" title="Every layer">All</button>
+      </div>
+    </div>
+  </div>
+  <script src="NSO_Repair.js?v=4e3bed7c"></script>
+  <script src="nso-defects.js?v=bbd387e5"></script>
+  <script src="nso-findings.js?v=653f4c0b"></script>
+  <script src="nso_patch.js?v=90516d9f"></script>
+  <script src="nso_planar_fuse.js?v=03762b55"></script>
+  <script src="nso_skin.js?v=e0cfc361"></script>
+  <script src="nso_skin_patch.js?v=4b2304fa"></script>
+  <script src="nso_carve.js?v=a47e16e3"></script>
+  <script src="nso_seat_surface.js?v=293d7ca2"></script>
+  <script src="nso_thickness.js?v=1322bde7"></script>
+  <script src="nso_hollow.js?v=9af04282"></script>
+  <script src="nso_foam.js?v=66ff8aa0"></script>
+  <!-- Support beacons: the plan-grid detector detectOverhangs wraps. Before
+       nso_support_aim.js so its beacons ride along on every detection. See
+       docs/SUPPORT-BEACONS.md. -->
+  <script src="nso_bvh.js?v=bfafc20d"></script>
+  <script src="nso_work.js?v=ff504301"></script>
+  <script src="nso_csg.js?v=42cf5b39"></script>
+  <script src="app-bool-busy.js?v=26c27885"></script>
+  <script src="nso_edges.js?v=3fe8fea0"></script>
+  <script src="nso_support_beacons.js?v=ae45c8c0"></script>
+  <script src="nso_support_aim.js?v=194e14e9"></script>
+  <!-- Attach: the connective tissue between Stock, auto-aim and Join's union.
+       After nso_support_aim.js, whose nearestBase and place it calls. See
+       docs/ASSEMBLE.md. -->
+  <script src="nso_assemble.js?v=f787a28b"></script>
+  <script src="nso_printer.js?v=138fa6cc"></script>
+  <!-- New stock: the shape-agnostic sizing app-wheel.js's Ball now calls,
+       so it loads ahead of it. See docs/STOCK.md. -->
+  <script src="nso_stock.js?v=6eaef717"></script>
+  <script src="nso_mold.js?v=1d971032"></script>
+  <script src="nso_paint_delete.js?v=24ad7d45"></script>
+  <script src="nso_skin_band.js?v=a89ce3fc"></script>
+  <script src="nso_path_sweep.js?v=5f188b95"></script>
+  <!-- Trunk-then-branches: the routing that drives the sweep, on top of
+       auto-aim's detection and base search. After BOTH of them, because it
+       calls into both by name and refuses when either is missing. Unwired,
+       like the two modules it sits on. See docs/SUPPORT-TREE.md. -->
+  <script src="nso_support_tree.js?v=315f7214"></script>
+  <!-- The support planner: one strut per support point, grown down and
+       merged pairwise on a node lattice, plate first. planTree above is
+       this; it needs nso_support_tree.js's contactPoints and union. See
+       docs/SUPPORT-GRIDPACK.md. -->
+  <script src="nso_support_gridpack.js?v=50028192"></script>
+  <script src="nso_exif.js?v=22458ef3"></script>
+  <script src="nso_photoset.js?v=0974faf1"></script>
+  <script src="nso-cooling-profiles.js"></script>
+  <script src="nso-3mf.js?v=0a241690"></script>
+  <script src="nso-3mf-read.js?v=28d79bcf"></script>
+  <script src="nso-3mf-scene.js?v=abb8f614"></script>
+  <script src="nso-surface-grid.js?v=c0d97583"></script>
+  <script src="nso-gcode-lines.js?v=c294e538"></script>
+  <script src="nso-gcode-solid.js?v=ac1a4f02"></script>
+  <script src="nso_slicer.js?v=14a0291a"></script>
+  <script src="nso_raster_lines.js?v=461ca449"></script>
+  <!-- The support interface: the crosshatch's one-direction layers, and the
+       sheet a support tree's tips carry under the part (flat caps on the
+       tips; 2 transition + 2 interface layers on them, each a loop and a
+       serpentine a piece; 0.18 mm gap). After nso_raster_lines.js, whose
+       line section both use. The Supports card's build worker loads them too. See
+       docs/SUPPORT-INTERFACE.md. -->
+  <script src="nso_crosshatch.js?v=c1b24917"></script>
+  <script src="nso_support_interface.js?v=c048d577"></script>
+  <script src="nso_relief.js?v=fe710fb1"></script>
+  <!-- Every tool helper goes in and out of the scene through this registry. -->
+  <script src="nso-helpers.js?v=9c476e39"></script>
+  <script src="nso-bounds.js?v=778acac4"></script>
+  <script src="app-core.js?v=7ccbdb78"></script>
+
+
+
+
+
+  <script src="app-cut.js?v=f2270e19"></script>
+  <script src="app-finish.js?v=c0e1380e"></script>
+  <script src="app-sculpt.js?v=f522aee3"></script>
+  <script src="app-extend.js?v=e24e3562"></script>
+  <!-- Mirror: exact reflection across the cut plane. After app-extend.js,
+       whose axis detector and band cut it calls. See docs/MIRROR.md. -->
+  <script src="app-mirror.js?v=38dc4f7c"></script>
+  <!-- Crop's engine: copy what a shape holds out of a piece (docs/CROP.md). On
+       the boolean kernel in app-join.js and app-sculpt.js's commit helpers;
+       the Crop card (app-crop-card.js) runs on it, so it comes first. -->
+  <script src="nso_crop.js?v=fc0cc98c"></script>
+  <!-- Crop, stage 1: box -> remove slab -> seal the joint. After app-cut.js
+       (rawCutOpen, rawFlatCapLoop, mapPlaneToRaw) and app-sculpt.js (commit). -->
+  <script src="app-crop.js?v=eaac717b"></script>
+  <!-- The Crop card: a shape dragged to size, CROP (docs/CROP.md). After app-crop.js
+       and app-cut.js, whose updateCutterUI it follows. -->
+  <script src="app-crop-card.js?v=5d2dba6f"></script>
+  <script src="app-fatten.js?v=9b21c866"></script>
+  <!-- Section reader: Ring / Rod / Bar, or why not. Calls app-extend.js's
+       axis detector and app-cut.js's loop walker at read time. -->
+  <script src="nso_section.js?v=6e5fa748"></script>
+  <!-- Shape rows: capsule, sphere / ellipsoid, torus - read and changed one
+       thing at a time. Calls app-extend.js (a capsule's Length) at apply time. -->
+  <script src="nso_shapes.js?v=688b17ef"></script>
+  <!-- Bend: the section carried round an arc. After nso_path_sweep.js (its
+       sweepArc), app-extend.js (the band finder), nso_section.js (the fit)
+       and app-sculpt.js (the commit). See docs/BEND.md. -->
+  <script src="nso_bend.js?v=d8df9214"></script>
+  <script src="app-bend.js?v=f4ab4644"></script>
+  <!-- Tube edge: Flare and Roll on the open end of a tube. After nso_section.js
+       (the circle fit), nso_bend.js (the topology gate) and app-sculpt.js (the
+       commit). See docs/TUBE-EDGE.md. -->
+  <script src="nso_tube_edge.js?v=d02ebd3a"></script>
+  <!-- Neck: a pinch or a bulge along a tube. After nso_tube_edge.js (its end
+       reader, weld and helpers). See docs/TUBE-EDGE.md, "Neck". -->
+  <script src="nso_tube_neck.js?v=e42beb75"></script>
+  <script src="app-tube-edge.js?v=e061840c"></script>
+  <!-- Bridge: a web between two places, welded. After NSO_Repair.js,
+       nso_planar_fuse.js (the vertex space), nso_thickness.js,
+       nso_assemble.js (the seat), nso_path_sweep.js (the rod) and
+       nso_section.js (the face's shape). See docs/BRIDGE.md. -->
+  <script src="nso_bridge.js?v=3c159ead"></script>
+  <script src="app-bridge.js?v=4545d04a"></script>
+  <script src="nso_close.js?v=4f560062"></script>
+  <script src="app-close.js?v=0762159e"></script>
+  <!-- Connect: the builder on Bridge's pick. After nso_bridge.js and
+       app-bridge.js (the pick and the overlay it reuses), nso_path_sweep.js
+       and nso_assemble.js. See docs/CONNECT.md. -->
+  <script src="nso_connect.js?v=6a10d956"></script>
+  <script src="app-connect.js?v=b57a771f"></script>
+  <!-- Ring verbs: Outer / Bore / Wall, a rod's Diameter. Calls
+       nso_section.js and app-fatten.js's face filter at apply time. -->
+  <script src="nso_ring.js?v=dc696549"></script>
+  <script src="app-scale.js?v=9ed19fba"></script>
+  <script src="app-brush.js?v=654c784d"></script>
+  <!-- Pull: nso_densify.js is the shared subdivision (the gun will use it too), nso_pull.js the field and its guards, app-pull.js the pointer session. docs/PULL.md -->
+  <script src="nso_densify.js?v=0b7748d1"></script>
+  <script src="nso_pull.js?v=6e876b23"></script>
+  <script src="app-pull.js?v=a0b1e1e3"></script>
+  <script src="app-wheel.js?v=35fda70f"></script>
+  <script src="app-fit.js?v=94ef7252"></script>
+  <script src="app-stock.js?v=91def76f"></script>
+  <script src="app-assemble.js?v=60984bfb"></script>
+  <script src="app-sel-outline.js?v=42298564"></script>
+  <script src="app-join.js?v=7ab9ee67"></script>
+  <script src="app-center-lock.js?v=e233ea0f"></script>
+  <script src="app-oversize-washer.js?v=a445c3ff"></script>
+  <script src="app-join-triple.js?v=95a9c48a"></script>
+  <script src="app-carve.js?v=15175db9"></script>
+  <!-- Punch: round holes through a face, alone, in a grid or on a circle. The
+       geometry (nso_punch.js) before its card (app-punch.js). docs/PUNCH.md. -->
+  <script src="nso_punch.js?v=867ffba8"></script>
+  <script src="app-punch.js?v=f7f8a6e2"></script>
+  <script src="app-hollow.js?v=3395c555"></script>
+  <script src="app-foam.js?v=33d5178e"></script>
+  <script src="app-seat-surface.js?v=55908323"></script>
+  <script src="app-skin.js?v=cb03e88b"></script>
+  <script src="app-skin-patch.js?v=42ac8ff6"></script>
+  <script src="app-raster.js?v=2f85efde"></script>
+  <script src="app-relief.js?v=4f55f71d"></script>
+  <script src="app-mold.js?v=c7052190"></script>
+  <script src="app-mask.js?v=9567fe41"></script>
+  <script src="app-seat-grid.js?v=7e42f602"></script>
+  <script src="app-paint-delete.js?v=e9d1ec70"></script>
+  <script src="app-extract-sel.js?v=0590eee5"></script>
+  <script src="app-texture.js?v=94304c2d"></script>
+  <script src="app-nonsolid.js?v=a54a7b89"></script>
+  <script src="app-poslock.js?v=262df735"></script>
+  <!-- The arbiter first: the three menu tools below register with it as
+       they bind, and it is what makes "one menu owns the input" true
+       rather than three modules each hoping the other two are shut. -->
+  <script src="app-input-mode.js?v=5b732f31"></script>
+  <script src="app-tip-orient.js?v=fb26beaf"></script>
+  <script src="app-rotate-handles.js?v=d2e7c09f"></script>
+  <script src="app-move-vertical.js?v=da07bfef"></script>
+  <script src="app-grab-drop.js?v=2bb09218"></script>
+  <script src="app-defects.js?v=9f49a45d"></script>
+  <!-- After app-defects.js, whose hooks and scan it uses. -->
+  <script src="app-findings.js?v=a03cb950"></script>
+  <script src="app-patch.js?v=c837fc2d"></script>
+  <script src="app-measure.js?v=d6f110a3"></script>
+  <!-- The library write features. access first: it holds the gate, the
+       target repository and the token key that the other two read. -->
+  <script src="app-library-access.js?v=4724f9d4"></script>
+  <script src="app-library-delete.js?v=0eb75f8f"></script>
+  <script src="app-library-save.js?v=648528d6"></script>
+  <script src="app-library.js?v=a25c49d7"></script>
+  <script src="app-photoset.js?v=884f6a54"></script>
+
+  <!-- Flange detection for G-scope's Flange tab. Pure; app-microscope.js
+       calls it with app-cut.js's rawCut. -->
+  <script src="nso_flange.js?v=3649478a"></script>
+  <!-- Handle, bracket, lid and hinge detection for G-scope's Parts list, one
+       row each under the Flange row. Pure. docs/GSCOPE-FEATURES.md. -->
+  <script src="nso_face_features.js?v=53ee4b23"></script>
+  <script src="app-microscope.js?v=5f2e5aa4"></script>
+  <!-- Detach / Reattach (Cut menu): cap a detected flange's hull on its own
+       wall, lift the flange out as a piece, seat it elsewhere with Attach's
+       seat. After nso_flange.js, app-crop.js, nso_assemble.js, app-assemble.js
+       and app-join.js, whose functions it calls. See docs/DETACH.md. -->
+  <script src="nso_detach.js?v=821852b5"></script>
+  <script src="app-detach.js?v=915c26c2"></script>
+  <!-- G-scope supports: overhang markers, point-click generation, per-support
+       edit / remove. After app-microscope.js, whose hooks it uses, and after
+       nso_support_aim.js / nso_support_tree.js / app-join.js, whose
+       detection, generators and union it calls. See docs/GCODE-SUPPORTS.md. -->
+  <script src="app-gscope-support.js?v=2397557a"></script>
+  <!-- The Supports card on the main page: the same detection and planner,
+       after app-core.js / app-join.js, whose ingest and soups it uses. -->
+  <script src="app-supports-card.js?v=86a29a27"></script>
+  <script src="app-gscope-slice.js?v=a22783c4"></script>
+  <!-- Lift: details off a face, the face left as it was round them. After
+       nso_lift.js (Phase 1: a flat face), nso_lift_curved.js (Lift 3: the
+       repair under a detail lifted off a curved base), nso_lift_auto.js
+       (Lift 2: the height map, needs nso_lift.js; Lift 3 calls the repair),
+       app-cut.js (rawFlatCapLoops), app-sculpt.js (the commit) and
+       app-microscope.js (the hooks). See docs/LIFT.md. -->
+  <script src="nso_lift.js?v=34f68869"></script>
+  <script src="nso_lift_curved.js?v=692d105e"></script>
+  <script src="nso_lift_auto.js?v=14d63622"></script>
+  <script src="app-lift-plate.js?v=e47d1f4e"></script>
+  <script src="nso_shells.js?v=9058ef83"></script>
+  <script src="nso_split_parts.js?v=bbef4f98"></script>
+  <script src="app-split-parts.js?v=90e688e6"></script>
+  <script src="app-export-overlap.js?v=18db87fe"></script>
+
+
+  <script src="app-ux.js?v=7a162b82"></script>
+  <!-- Live watch: off until its button is pressed, and it patches nothing
+       until then. Deleting this tag and the #btn-watch button above removes
+       the feature completely. -->
+  <script src="nso-watch.js?v=82226940"></script>
+  <script src="app-cth-expose.js?v=d937a322"></script>
+  <script type="module" src="app-cth.js?v=9f6757fd"></script>
+</body>
+</html>
